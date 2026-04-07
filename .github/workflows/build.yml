@@ -1,18 +1,19 @@
-name: Build & Test
+name: Build Android APK
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:   # allows manual trigger from GitHub UI
 
 jobs:
   build-android:
-    name: Build Android APK + AAB
+    name: Build Debug APK
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
@@ -20,37 +21,39 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+          cache: 'gradle'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
 
-      - name: Cache Gradle
+      - name: Grant execute permission to gradlew
+        run: chmod +x gradlew
+
+      - name: Cache Kotlin Native compiler
         uses: actions/cache@v4
         with:
           path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/libs.versions.toml') }}
-
-      - name: Grant Gradle permission
-        run: chmod +x gradlew
+            ~/.konan
+          key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml') }}
 
       - name: Build Debug APK
-        run: ./gradlew :androidApp:assembleDebug --no-daemon
-
-      - name: Build Release AAB
-        run: ./gradlew :androidApp:bundleRelease --no-daemon
+        run: gradle :androidApp:assembleDebug --no-daemon --stacktrace
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false"
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: kvt-debug-${{ github.sha }}
+          name: KakkamvellyTemple-debug-${{ github.run_number }}
           path: androidApp/build/outputs/apk/debug/*.apk
           retention-days: 30
 
-      - name: Upload Release AAB
-        uses: actions/upload-artifact@v4
-        with:
-          name: kvt-release-aab-${{ github.sha }}
-          path: androidApp/build/outputs/bundle/release/*.aab
-          retention-days: 30
+      - name: Build Summary
+        run: |
+          echo "## ✅ Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "**App:** കക്കംവെള്ളി ക്ഷേത്രം" >> $GITHUB_STEP_SUMMARY
+          echo "**Package:** page.kakkamvellytemple.app" >> $GITHUB_STEP_SUMMARY
+          echo "**Run:** #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "Download the APK from the Artifacts section above ⬆️" >> $GITHUB_STEP_SUMMARY
