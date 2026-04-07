@@ -10,20 +10,26 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId   = "page.kakkamvellytemple.app"
-        minSdk          = 24
-        targetSdk       = 35
-        versionCode     = 1
-        versionName     = "1.0.0"
+        applicationId  = "page.kakkamvellytemple.app"
+        minSdk         = 24
+        targetSdk      = 35
+        versionCode    = 1
+        versionName    = "1.0.0"
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = true
+            isMinifyEnabled   = true
             isShrinkResources = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
-        debug { applicationIdSuffix = ".debug"; versionNameSuffix = "-debug" }
+        debug {
+            applicationIdSuffix  = ".debug"
+            versionNameSuffix    = "-debug"
+        }
     }
 
     compileOptions {
@@ -31,8 +37,13 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    kotlinOptions { jvmTarget = "17" }
+
     buildFeatures { compose = true }
-    packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
+
+    packaging {
+        resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+    }
 }
 
 dependencies {
@@ -41,6 +52,7 @@ dependencies {
     implementation(libs.compose.ui)
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
+    implementation(libs.compose.material.icons)
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.coil.compose)
@@ -49,5 +61,5 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
     implementation(libs.firebase.analytics)
-    debugImplementation(libs.compose.ui.tooling.preview)
+    debugImplementation(libs.compose.ui.tooling)
 }

@@ -1,6 +1,7 @@
 package page.kakkamvellytemple.app.presentation.ui
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -13,12 +14,17 @@ import page.kakkamvellytemple.app.presentation.ui.screen.*
 import page.kakkamvellytemple.app.presentation.ui.theme.KakkamvellyTempleTheme
 import page.kakkamvellytemple.app.presentation.viewmodel.*
 
-sealed class NavTab(val route: String, val iconRes: ImageVector, val labelMl: String, val labelEn: String) {
-    object Home     : NavTab("home",     Icons.Default.Home,        "മുഖ്യ",    "Home")
-    object Festival : NavTab("festival", Icons.Default.Celebration, "ഉത്സവം",  "Festival")
-    object Timings  : NavTab("timings",  Icons.Default.AccessTime,  "സമയം",    "Timings")
-    object Gallery  : NavTab("gallery",  Icons.Default.PhotoLibrary,"ഗ്യാലറി", "Gallery")
-    object More     : NavTab("more",     Icons.Default.MoreHoriz,   "കൂടുതൽ", "More")
+sealed class NavTab(
+    val route: String,
+    val icon: ImageVector,
+    val labelMl: String,
+    val labelEn: String
+) {
+    object Home     : NavTab("home",     Icons.Default.Home,         "മുഖ്യ",    "Home")
+    object Festival : NavTab("festival", Icons.Default.Celebration,  "ഉത്സവം",  "Festival")
+    object Timings  : NavTab("timings",  Icons.Default.AccessTime,   "സമയം",    "Timings")
+    object Gallery  : NavTab("gallery",  Icons.Default.PhotoLibrary, "ഗ്യാലറി", "Gallery")
+    object More     : NavTab("more",     Icons.Default.MoreHoriz,    "കൂടുതൽ", "More")
 }
 
 val TABS = listOf(NavTab.Home, NavTab.Festival, NavTab.Timings, NavTab.Gallery, NavTab.More)
@@ -33,34 +39,36 @@ fun KVTApp(
         var selectedTab by remember { mutableStateOf<NavTab>(NavTab.Home) }
         var isEn by remember { mutableStateOf(false) }
 
-        // ViewModels — created once, survive tab changes
         val homeVM     = remember { HomeViewModel() }
         val festivalVM = remember { FestivalViewModel() }
         val timingsVM  = remember { TimingsViewModel() }
 
+        DisposableEffect(Unit) {
+            onDispose {
+                homeVM.dispose()
+                festivalVM.dispose()
+                timingsVM.dispose()
+            }
+        }
+
         Scaffold(
             topBar = { KVTTopBar(isEn = isEn, onToggleLang = { isEn = !isEn }) },
-            bottomBar = {
-                KVTBottomBar(selected = selectedTab, isEn = isEn, onSelect = { selectedTab = it })
-            }
+            bottomBar = { KVTBottomBar(selected = selectedTab, isEn = isEn, onSelect = { selectedTab = it }) }
         ) { padding ->
             Box(modifier = Modifier.fillMaxSize().padding(padding)) {
                 AnimatedContent(
                     targetState = selectedTab,
-                    transitionSpec = { fadeIn(animationSpec = tween(180)) togetherWith fadeOut(animationSpec = tween(180)) },
-                    label = "tab_transition"
+                    transitionSpec = {
+                        fadeIn(tween(180)) togetherWith fadeOut(tween(180))
+                    },
+                    label = "tab"
                 ) { tab ->
                     when (tab) {
                         NavTab.Home     -> HomeScreen(homeVM, isEn)
                         NavTab.Festival -> FestivalScreen(festivalVM, isEn)
                         NavTab.Timings  -> TimingsScreen(timingsVM, isEn)
                         NavTab.Gallery  -> GalleryScreen(isEn)
-                        NavTab.More     -> MoreScreen(
-                            onOpenMaps = onOpenMaps,
-                            onCall = onCall,
-                            onWhatsApp = onWhatsApp,
-                            isEn = isEn
-                        )
+                        NavTab.More     -> MoreScreen(onOpenMaps, onCall, onWhatsApp, isEn)
                     }
                 }
             }
@@ -74,15 +82,9 @@ private fun KVTTopBar(isEn: Boolean, onToggleLang: () -> Unit) {
     TopAppBar(
         title = {
             Column {
-                Text(
-                    text = "കക്കംവെള്ളി ക്ഷേത്രം",
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Text(
-                    text = "ॐ Hare Krishna",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-                )
+                Text("കക്കംവെള്ളി ക്ഷേത്രം", style = MaterialTheme.typography.titleMedium)
+                Text("ॐ Hare Krishna", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
             }
         },
         actions = {
@@ -93,8 +95,8 @@ private fun KVTTopBar(isEn: Boolean, onToggleLang: () -> Unit) {
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-            titleContentColor = MaterialTheme.colorScheme.onSurface
+            containerColor     = MaterialTheme.colorScheme.surface,
+            titleContentColor  = MaterialTheme.colorScheme.onSurface
         )
     )
 }
@@ -104,10 +106,10 @@ private fun KVTBottomBar(selected: NavTab, isEn: Boolean, onSelect: (NavTab) -> 
     NavigationBar(tonalElevation = 4.dp) {
         TABS.forEach { tab ->
             NavigationBarItem(
-                selected = selected == tab,
-                onClick = { onSelect(tab) },
-                icon = { Icon(tab.iconRes, contentDescription = if (isEn) tab.labelEn else tab.labelMl) },
-                label = { Text(if (isEn) tab.labelEn else tab.labelMl,
+                selected  = selected == tab,
+                onClick   = { onSelect(tab) },
+                icon      = { Icon(tab.icon, if (isEn) tab.labelEn else tab.labelMl) },
+                label     = { Text(if (isEn) tab.labelEn else tab.labelMl,
                     style = MaterialTheme.typography.labelSmall) }
             )
         }

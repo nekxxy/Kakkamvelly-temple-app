@@ -1,10 +1,7 @@
 package page.kakkamvellytemple.app.presentation.viewmodel
 
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
 import page.kakkamvellytemple.app.data.model.Festival
 import page.kakkamvellytemple.app.data.repository.TempleRepository
 import page.kakkamvellytemple.app.util.CountdownParts
@@ -16,21 +13,20 @@ data class FestivalUiState(
     val upcomingFestivals: List<Festival> = emptyList()
 )
 
-class FestivalViewModel(
-    private val repo: TempleRepository = TempleRepository()
-) : ViewModel() {
+class FestivalViewModel(private val repo: TempleRepository = TempleRepository()) {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val _state = MutableStateFlow(FestivalUiState())
     val state: StateFlow<FestivalUiState> = _state.asStateFlow()
 
     init {
-        viewModelScope.launch {
+        scope.launch {
             while (true) {
                 val next = repo.getNextFestival()
                 val diffMs = (next.dateUtcMs - ISTClock.epochMs()).coerceAtLeast(0)
                 _state.update {
                     it.copy(
-                        nextFestival     = next,
-                        countdown        = ISTClock.formatCountdown(diffMs),
+                        nextFestival      = next,
+                        countdown         = ISTClock.formatCountdown(diffMs),
                         upcomingFestivals = repo.getUpcomingFestivals()
                     )
                 }
@@ -38,4 +34,6 @@ class FestivalViewModel(
             }
         }
     }
+
+    fun dispose() = scope.cancel()
 }
