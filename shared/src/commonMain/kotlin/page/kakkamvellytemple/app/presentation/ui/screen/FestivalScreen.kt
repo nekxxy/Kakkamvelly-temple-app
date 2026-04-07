@@ -46,9 +46,14 @@ fun FestivalScreen(viewModel: FestivalViewModel, isEn: Boolean = false) {
             )
         }
 
-        // Group by year
-        val grouped = state.upcomingFestivals.groupBy {
-            it.instant.toLocalDateTime(kotlinx.datetime.TimeZone.of("Asia/Kolkata")).year
+        // Group by year using epoch ms
+        val grouped: Map<Int, List<Festival>> = state.upcomingFestivals.groupBy { fest ->
+            val days = fest.dateUtcMs / 86400000L
+            val y400 = days / 146097L; val r400 = days % 146097L
+            val y100 = minOf(r400 / 36524L, 3L); val r100 = r400 - y100 * 36524L
+            val y4   = r100 / 1461L;  val r4   = r100 % 1461L
+            val y1   = minOf(r4 / 365L, 3L)
+            (y400 * 400 + y100 * 100 + y4 * 4 + y1 + 1970).toInt()
         }
         grouped.forEach { (year, festivals) ->
             item {
