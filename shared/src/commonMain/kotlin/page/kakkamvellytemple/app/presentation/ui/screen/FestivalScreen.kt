@@ -1,4 +1,5 @@
 package page.kakkamvellytemple.app.presentation.ui.screen
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 
 import androidx.compose.foundation.layout.*

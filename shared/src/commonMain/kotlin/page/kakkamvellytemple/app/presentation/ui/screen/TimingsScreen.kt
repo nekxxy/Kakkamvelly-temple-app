@@ -1,4 +1,5 @@
 package page.kakkamvellytemple.app.presentation.ui.screen
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 
 import androidx.compose.foundation.background
@@ -34,7 +35,7 @@ fun TimingsScreen(viewModel: TimingsViewModel, isEn: Boolean = false) {
                 Row(Modifier.fillMaxWidth().padding(16.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly) {
                     HoursBlock("☀️", if (isEn) "Morning" else "രാവിലെ", "5:30 – 9:00 AM")
-                    VerticalDivider(Modifier.height(48.dp))
+                    Box(Modifier.width(1.dp).height(48.dp).background(MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)))
                     HoursBlock("🌙", if (isEn) "Evening" else "വൈകുന്നേരം", "5:45 – 6:45 PM")
                 }
             }
