@@ -1,6 +1,29 @@
 {
-  "_comment": "REPLACE THIS with your actual google-services.json from Firebase Console",
-  "_instructions": "1. Go to https://console.firebase.google.com 2. Create project 'KakkamvellyTemple' 3. Add Android app with package page.kakkamvellytemple.app 4. Download google-services.json and replace this file",
-  "project_info": { "project_id": "REPLACE_ME" },
-  "client": [{ "client_info": { "android_client_info": { "package_name": "page.kakkamvellytemple.app" } } }]
+  "project_info": {
+    "project_number": "788049758293",
+    "project_id": "kakkamvellytempleapp",
+    "storage_bucket": "kakkamvellytempleapp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:788049758293:android:a41a6d10a7921ba91eacdc",
+        "android_client_info": {
+          "package_name": "page.kakkamvellytemple.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCx4gB5p_2US8AD2wkdzj3H-YKs6ZD9Yxs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
 }
