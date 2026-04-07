@@ -1,6 +1,6 @@
 [versions]
 kotlin              = "2.0.21"
-agp                 = "8.7.3"
+agp                 = "8.5.2"
 composeMultiplatform = "1.7.3"
 composeMaterial3    = "1.4.0"
 composeNavigation   = "2.8.5"

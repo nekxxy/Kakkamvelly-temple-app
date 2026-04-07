@@ -6,15 +6,15 @@ plugins {
 }
 
 android {
-    namespace = "page.kakkamvellytemple.app"
-    compileSdk = 35
+    namespace   = "page.kakkamvellytemple.app"
+    compileSdk  = 35
 
     defaultConfig {
-        applicationId  = "page.kakkamvellytemple.app"
-        minSdk         = 24
-        targetSdk      = 35
-        versionCode    = 1
-        versionName    = "1.0.0"
+        applicationId = "page.kakkamvellytemple.app"
+        minSdk        = 24
+        targetSdk     = 35
+        versionCode   = 1
+        versionName   = "1.0.0"
     }
 
     buildTypes {
@@ -27,8 +27,9 @@ android {
             )
         }
         debug {
-            applicationIdSuffix  = ".debug"
-            versionNameSuffix    = "-debug"
+            // No applicationIdSuffix — keeps package = page.kakkamvellytemple.app
+            // so google-services.json matches correctly
+            isDebuggable = true
         }
     }
 
@@ -37,7 +38,9 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions { jvmTarget = "17" }
+    kotlinOptions {
+        jvmTarget = "17"
+    }
 
     buildFeatures { compose = true }
 

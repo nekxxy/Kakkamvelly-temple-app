@@ -9,7 +9,9 @@ plugins {
 kotlin {
     androidTarget {
         compilations.all {
-            kotlinOptions { jvmTarget = "17" }
+            compilerOptions.configure {
+                jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+            }
         }
     }
 
@@ -41,8 +43,8 @@ kotlin {
 }
 
 android {
-    namespace = "page.kakkamvellytemple.app.shared"
-    compileSdk = 35
+    namespace   = "page.kakkamvellytemple.app.shared"
+    compileSdk  = 35
     defaultConfig { minSdk = 24 }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
