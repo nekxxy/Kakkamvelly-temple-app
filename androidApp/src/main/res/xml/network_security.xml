@@ -1,8 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system"/>
+        </trust-anchors>
+    </base-config>
     <domain-config cleartextTrafficPermitted="false">
         <domain includeSubdomains="true">api.open-meteo.com</domain>
         <domain includeSubdomains="true">kakkamvellytemple.page</domain>
         <domain includeSubdomains="true">img.youtube.com</domain>
+        <domain includeSubdomains="true">i.ytimg.com</domain>
     </domain-config>
 </network-security-config>

@@ -16,11 +16,11 @@ class MainActivity : ComponentActivity() {
             KVTApp(
                 onOpenMaps  = { url -> openUri(url) },
                 onCall      = { phone -> openUri("tel:$phone") },
-                onWhatsApp  = { number -> openUri("https://wa.me/$number") }
+                onWhatsApp  = { number -> openUri("https://wa.me/$number") },
+                onOpenUrl   = { url -> openUri(url) }
             )
         }
     }
-
     private fun openUri(uri: String) {
         startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(uri)))
     }

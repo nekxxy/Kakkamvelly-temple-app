@@ -39,3 +39,25 @@ jobs:
           name: KakkamvellyTemple-debug-${{ github.run_number }}
           path: androidApp/build/outputs/apk/debug/*.apk
           retention-days: 30
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Download APK
+        uses: actions/download-artifact@v4
+        with:
+          name: KakkamvellyTemple-debug-${{ github.run_number }}
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: "കക്കംവെള്ളി ക്ഷേത്രം App — Build ${{ github.run_number }}"
+          body: "Debug APK — Install directly on Android phone"
+          files: "*.apk"
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

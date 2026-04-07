@@ -34,6 +34,8 @@ kotlin {
             implementation(libs.koin.compose)
         }
         androidMain.dependencies {
+            implementation(libs.coil.compose)
+            implementation(libs.coil.network)
             implementation(libs.ktor.client.android)
             implementation(libs.compose.activity)
             implementation(libs.koin.android)
