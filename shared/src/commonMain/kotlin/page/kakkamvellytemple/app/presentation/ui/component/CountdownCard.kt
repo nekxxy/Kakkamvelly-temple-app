@@ -83,7 +83,7 @@ private fun CountdownUnit(value: String, label: String) {
             .widthIn(min = 50.dp)
     ) {
         Text(value, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Gold,
-            fontFeatureSettings = "tnum")
+            fontFeatureSettings = "tnum", textAlign = TextAlign.Center)
         Text(label, style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
