@@ -94,5 +94,5 @@ object StaticData {
     // Krishna image from website — for hero (#10)
     const val KRISHNA_IMAGE_URL = "https://kakkamvellytemple.page/images/baby-krishna-hero.webp"
     // GitHub Releases URL — for APK download (#11)
-    const val APK_DOWNLOAD_URL = "https://github.com/nekxxy/Kakkamvelly-temple-app/releases/latest/download/app-debug.apk"
+    const val APK_DOWNLOAD_URL = "https://github.com/nekxxy/Kakkamvelly-temple-app/releases/latest/download/kakkamvelly-temple.apk"
 }
