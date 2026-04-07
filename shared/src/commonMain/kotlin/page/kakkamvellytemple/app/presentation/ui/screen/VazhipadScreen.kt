@@ -33,7 +33,7 @@ fun VazhipadScreen(onCall: (String) -> Unit, onWhatsApp: (String) -> Unit, isEn:
                     style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground)
                 Text(if (isEn) "Book through Secretary" else "Secretary വഴി ബുക്ക് ചെയ്യൂ",
-                    style = MaterialTheme.typography.labelMedium, color = Gold.copy(alpha = 0.7f))
+                    style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(0.75f))
                 Spacer(Modifier.height(4.dp))
             }
         }
@@ -96,12 +96,12 @@ fun VazhipadCard(item: VazhipadItem, isEn: Boolean) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Surface(
-                color = Gold.copy(alpha = 0.15f),
+                color = MaterialTheme.colorScheme.primary.copy(0.15f),
                 shape = RoundedCornerShape(50)
             ) {
                 Text("₹${item.amount}", modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                     style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold,
-                    color = Gold)
+                    color = MaterialTheme.colorScheme.primary)
             }
         }
     }

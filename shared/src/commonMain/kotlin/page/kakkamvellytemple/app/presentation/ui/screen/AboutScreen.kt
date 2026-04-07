@@ -26,7 +26,7 @@ fun AboutScreen(isEn: Boolean = false) {
             text = if (isEn) "Sacred Home of Baby Krishna" else "ഉണ്ണിക്കൃഷ്ണന്റെ പുണ്യ ഭൂമി",
             style = MaterialTheme.typography.titleMedium, color = Gold
         )
-        HorizontalDivider(color = Gold.copy(alpha = 0.2f))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 
         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
