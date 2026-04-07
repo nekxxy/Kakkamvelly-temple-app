@@ -3,44 +3,56 @@
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
 
-    <!-- Lotus petals ring -->
-    <path android:fillColor="#FFCC00"
-        android:pathData="M54,22 Q58,30 54,34 Q50,30 54,22Z"/>
-    <path android:fillColor="#FFCC00"
-        android:pathData="M54,22 Q58,30 54,34 Q50,30 54,22Z"
-        android:translateX="10" android:translateY="4"
-        android:rotation="45" android:pivotX="54" android:pivotY="54"/>
-    <path android:fillColor="#FFD700"
-        android:pathData="M76,54 Q68,58 64,54 Q68,50 76,54Z"/>
-    <path android:fillColor="#FFD700"
-        android:pathData="M32,54 Q40,58 44,54 Q40,50 32,54Z"/>
-    <path android:fillColor="#FFCC00"
-        android:pathData="M54,86 Q58,78 54,74 Q50,78 54,86Z"/>
-    <path android:fillColor="#FFD700"
-        android:pathData="M71,71 Q65,65 68,61 Q72,64 71,71Z"/>
-    <path android:fillColor="#FFD700"
-        android:pathData="M37,37 Q43,43 40,47 Q36,44 37,37Z"/>
-    <path android:fillColor="#FFD700"
-        android:pathData="M71,37 Q65,43 68,47 Q72,44 71,37Z"/>
-    <path android:fillColor="#FFD700"
-        android:pathData="M37,71 Q43,65 40,61 Q36,64 37,71Z"/>
+    <!-- Outer glow ring -->
+    <path android:fillColor="#33FFD700"
+        android:pathData="M54,18 m-36,0 a36,36 0 1,0 72,0 a36,36 0 1,0 -72,0"/>
 
-    <!-- OM symbol center -->
-    <path android:fillColor="#C8860A"
-        android:pathData="M47,44 C44,44 42,46 42,50 C42,54 44,57 47,58 C45,59 44,61 45,63 C46,65 49,65 51,63 L51,58 C53,58 55,57 56,55 C57,53 57,50 56,48 C55,46 53,44 51,44 L47,44Z
-        M47,47 L51,47 C53,47 54,49 54,51 C54,53 53,55 51,55 L47,55 L47,47Z"/>
+    <!-- 8 lotus petals using pre-computed path data -->
+    <path android:fillColor="#FFD700"
+        android:pathData="M54,22 C56,26 56,30 54,32 C52,30 52,26 54,22Z"/>
+    <path android:fillColor="#FFD700"
+        android:pathData="M68,28 C66,32 62,34 60,32 C62,30 66,28 68,28Z"/>
+    <path android:fillColor="#FFD700"
+        android:pathData="M76,42 C72,42 70,46 72,48 C74,46 76,42 76,42Z"/>
+    <path android:fillColor="#FFD700"
+        android:pathData="M76,66 C72,66 70,62 72,60 C74,62 76,66 76,66Z"/>
+    <path android:fillColor="#FFD700"
+        android:pathData="M68,80 C66,76 62,74 60,76 C62,78 66,80 68,80Z"/>
+    <path android:fillColor="#FFD700"
+        android:pathData="M54,86 C52,82 52,78 54,76 C56,78 56,82 54,86Z"/>
+    <path android:fillColor="#FFD700"
+        android:pathData="M40,80 C42,76 46,74 48,76 C46,78 42,80 40,80Z"/>
+    <path android:fillColor="#FFD700"
+        android:pathData="M32,66 C36,66 38,62 36,60 C34,62 32,66 32,66Z"/>
+    <path android:fillColor="#FFD700"
+        android:pathData="M32,42 C36,42 38,46 36,48 C34,46 32,42 32,42Z"/>
+    <path android:fillColor="#FFD700"
+        android:pathData="M40,28 C42,32 46,34 48,32 C46,30 42,28 40,28Z"/>
+
+    <!-- Center circle -->
+    <path android:fillColor="#08041C"
+        android:pathData="M54,34 m-20,0 a20,20 0 1,0 40,0 a20,20 0 1,0 -40,0"/>
+
+    <!-- OM symbol — simplified bold path -->
+    <path android:fillColor="#FFD700"
+        android:pathData="M44,50 C44,46 47,44 50,44 C54,44 56,47 55,51 C54,54 51,55 48,55 L48,58 C48,60 50,61 52,60 C54,59 55,57 53,56"/>
+    <path android:fillColor="#FFD700"
+        android:strokeColor="#FFD700" android:strokeWidth="2.5" android:strokeLineCap="round"
+        android:pathData="M44,50 C44,54 47,57 51,57 L51,62 C51,64 53,65 55,64 C58,63 59,60 57,58"/>
     <!-- OM dot -->
-    <path android:fillColor="#C8860A"
-        android:pathData="M54,42 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0"/>
-    <!-- OM curved top -->
-    <path android:fillColor="#C8860A"
-        android:strokeColor="#C8860A" android:strokeWidth="2"
-        android:pathData="M46,42 C46,39 49,37 52,38 C55,39 56,42 54,44"/>
+    <path android:fillColor="#FFD700"
+        android:pathData="M57,42 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0"/>
+    <!-- OM virama arc -->
+    <path android:fillColor="#00000000"
+        android:strokeColor="#FFD700" android:strokeWidth="2" android:strokeLineCap="round"
+        android:pathData="M46,43 C46,40 49,38 52,39 C55,40 56,43 54,45"/>
 
-    <!-- Flute lines -->
-    <path android:strokeColor="#C8860A" android:strokeWidth="1.5"
-        android:strokeLineCap="round"
-        android:pathData="M58,47 L72,60"/>
-    <path android:strokeColor="#C8860A" android:strokeWidth="1"
-        android:pathData="M61,48 L61,50 M64,51 L64,53 M67,54 L67,56"/>
+    <!-- Flute diagonal -->
+    <path android:fillColor="#00000000"
+        android:strokeColor="#C8860A" android:strokeWidth="2" android:strokeLineCap="round"
+        android:pathData="M59,48 L70,59"/>
+    <path android:fillColor="#00000000"
+        android:strokeColor="#C8860A" android:strokeWidth="1.2" android:strokeLineCap="round"
+        android:pathData="M62,49 L62,51 M65,52 L65,54 M68,55 L68,57"/>
+
 </vector>
