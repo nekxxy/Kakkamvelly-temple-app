@@ -1,0 +1,6 @@
+{
+  "_comment": "REPLACE THIS with your actual google-services.json from Firebase Console",
+  "_instructions": "1. Go to https://console.firebase.google.com 2. Create project 'KakkamvellyTemple' 3. Add Android app with package page.kakkamvellytemple.app 4. Download google-services.json and replace this file",
+  "project_info": { "project_id": "REPLACE_ME" },
+  "client": [{ "client_info": { "android_client_info": { "package_name": "page.kakkamvellytemple.app" } } }]
+}
