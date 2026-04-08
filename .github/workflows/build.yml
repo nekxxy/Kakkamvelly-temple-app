@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    name: Build & Sign
+    name: Build Debug APK + Signed Release AAB
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,21 +33,16 @@ jobs:
           key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml') }}
           restore-keys: konan-${{ runner.os }}-
 
-      # Decode keystore from GitHub Secret
-      - name: Decode keystore
-        run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > keystore.jks
-
       - name: Build Debug APK
         run: gradle :androidApp:assembleDebug
 
       - name: Build Signed Release AAB
         run: gradle :androidApp:bundleRelease
         env:
-          SIGNING_STORE_FILE: ${{ github.workspace }}/keystore.jks
-          SIGNING_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
-          SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          SIGNING_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          SIGNING_STORE_FILE: ${{ github.workspace }}/kakkamvelly-release.jks
+          SIGNING_STORE_PASSWORD: "kvt@2025#temple"
+          SIGNING_KEY_ALIAS: "kakkamvelly"
+          SIGNING_KEY_PASSWORD: "kvt@2025#temple"
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
@@ -56,10 +51,10 @@ jobs:
           path: androidApp/build/outputs/apk/debug/*.apk
           retention-days: 30
 
-      - name: Upload Release AAB
+      - name: Upload Release AAB (Play Store ready)
         uses: actions/upload-artifact@v4
         with:
-          name: KakkamvellyTemple-release-aab-${{ github.run_number }}
+          name: KakkamvellyTemple-release-AAB-${{ github.run_number }}
           path: androidApp/build/outputs/bundle/release/*.aab
           retention-days: 90
 
@@ -83,8 +78,14 @@ jobs:
           tag_name: latest
           name: "കക്കംവെള്ളി ക്ഷേത്രം — Latest"
           body: |
-            ## Download
-            Tap **kakkamvelly-temple.apk** to install directly.
+            ## Download App
+            Tap **kakkamvelly-temple.apk** below to install.
+
+            **Steps:**
+            1. Download the APK
+            2. Allow "Install unknown apps" in Android Settings
+            3. Tap the downloaded file to install
+
             Build #${{ github.run_number }}
           files: apk/kakkamvelly-temple.apk
           prerelease: false

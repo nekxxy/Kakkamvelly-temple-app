@@ -19,10 +19,13 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile     = file(System.getenv("SIGNING_STORE_FILE") ?: "keystore.jks")
-            storePassword = System.getenv("SIGNING_STORE_PASSWORD") ?: ""
-            keyAlias      = System.getenv("SIGNING_KEY_ALIAS") ?: ""
-            keyPassword   = System.getenv("SIGNING_KEY_PASSWORD") ?: ""
+            // Use env vars from CI, fall back to local file if available
+            val storeFilePath = System.getenv("SIGNING_STORE_FILE")
+                ?: "${rootProject.projectDir}/kakkamvelly-release.jks"
+            storeFile     = file(storeFilePath)
+            storePassword = System.getenv("SIGNING_STORE_PASSWORD") ?: "kvt@2025#temple"
+            keyAlias      = System.getenv("SIGNING_KEY_ALIAS")      ?: "kakkamvelly"
+            keyPassword   = System.getenv("SIGNING_KEY_PASSWORD")   ?: "kvt@2025#temple"
         }
     }
 
@@ -45,7 +48,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
     packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
