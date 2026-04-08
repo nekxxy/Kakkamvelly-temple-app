@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Android APK + AAB
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    name: Build Debug APK
+    name: Build & Sign
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,22 +33,42 @@ jobs:
           key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml') }}
           restore-keys: konan-${{ runner.os }}-
 
+      # Decode keystore from GitHub Secret
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > keystore.jks
+
       - name: Build Debug APK
         run: gradle :androidApp:assembleDebug
 
-      - name: Upload APK artifact
+      - name: Build Signed Release AAB
+        run: gradle :androidApp:bundleRelease
+        env:
+          SIGNING_STORE_FILE: ${{ github.workspace }}/keystore.jks
+          SIGNING_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
           name: KakkamvellyTemple-debug-${{ github.run_number }}
           path: androidApp/build/outputs/apk/debug/*.apk
           retention-days: 30
 
+      - name: Upload Release AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: KakkamvellyTemple-release-aab-${{ github.run_number }}
+          path: androidApp/build/outputs/bundle/release/*.aab
+          retention-days: 90
+
   release:
     name: Publish GitHub Release
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Download APK
+      - name: Download Debug APK
         uses: actions/download-artifact@v4
         with:
           name: KakkamvellyTemple-debug-${{ github.run_number }}
@@ -57,20 +77,14 @@ jobs:
       - name: Rename APK
         run: mv apk/*.apk apk/kakkamvelly-temple.apk
 
-      - name: Create or update latest release
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
-          name: "കക്കംവെള്ളി ക്ഷേത്രം — Latest Build"
+          name: "കക്കംവെള്ളി ക്ഷേത്രം — Latest"
           body: |
             ## Download
-            Tap **kakkamvelly-temple.apk** below to download.
-
-            **Install steps:**
-            1. Download the APK
-            2. Allow "Install unknown apps" in Android settings
-            3. Tap the APK to install
-
+            Tap **kakkamvelly-temple.apk** to install directly.
             Build #${{ github.run_number }}
           files: apk/kakkamvelly-temple.apk
           prerelease: false
