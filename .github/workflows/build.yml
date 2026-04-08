@@ -44,50 +44,28 @@ jobs:
           SIGNING_KEY_ALIAS: "kakkamvelly"
           SIGNING_KEY_PASSWORD: "kvt@2025#temple"
 
-      - name: Upload Debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: KakkamvellyTemple-debug-${{ github.run_number }}
-          path: androidApp/build/outputs/apk/debug/*.apk
-          retention-days: 30
+      - name: Rename outputs
+        run: |
+          mv androidApp/build/outputs/apk/debug/*.apk kakkamvelly-temple.apk
+          mv androidApp/build/outputs/bundle/release/*.aab kakkamvelly-temple.aab
 
-      - name: Upload Release AAB (Play Store ready)
-        uses: actions/upload-artifact@v4
-        with:
-          name: KakkamvellyTemple-release-AAB-${{ github.run_number }}
-          path: androidApp/build/outputs/bundle/release/*.aab
-          retention-days: 90
-
-  release:
-    name: Publish GitHub Release
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download Debug APK
-        uses: actions/download-artifact@v4
-        with:
-          name: KakkamvellyTemple-debug-${{ github.run_number }}
-          path: apk/
-
-      - name: Rename APK
-        run: mv apk/*.apk apk/kakkamvelly-temple.apk
-
-      - name: Create Release
+      - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
-          name: "കക്കംവെള്ളി ക്ഷേത്രം — Latest"
+          name: "കക്കംവെള്ളി ക്ഷേത്രം — Latest Build"
           body: |
-            ## Download App
-            Tap **kakkamvelly-temple.apk** below to install.
+            ## Files
 
-            **Steps:**
-            1. Download the APK
-            2. Allow "Install unknown apps" in Android Settings
-            3. Tap the downloaded file to install
+            | File | Use for |
+            |------|---------|
+            | `kakkamvelly-temple.apk` | Install directly on Android phone |
+            | `kakkamvelly-temple.aab` | Upload to Google Play Store |
 
             Build #${{ github.run_number }}
-          files: apk/kakkamvelly-temple.apk
+          files: |
+            kakkamvelly-temple.apk
+            kakkamvelly-temple.aab
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
