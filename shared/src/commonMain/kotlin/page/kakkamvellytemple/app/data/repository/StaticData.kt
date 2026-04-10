@@ -58,19 +58,51 @@ object StaticData {
         GalleryPhoto("temple-side-grounds","ക്ഷേത്ര മൈതാനം","Temple Grounds")
     )
 
-    // Vazhipad (offerings) with amounts — #6
+    // Vazhipad — exact amounts from temple board (Regd. 255/94)
     val VAZHIPAD_ITEMS = listOf(
-        VazhipadItem("ഉദയാസ്തമനം","Udayasthamanam (Full Day)",500,"രാവിലെ മുതൽ വൈകുന്നേരം വരെ"),
-        VazhipadItem("നേദ്യം","Nedyam (Offering)",101,"ഭഗവാന് ഭക്ഷണ നിവേദ്യം"),
-        VazhipadItem("ദീപാരാധന","Deepa Aradhana",50,"ദീപ ആരാധന"),
-        VazhipadItem("ഭജന","Bhajana",201,"ഭക്തിഗാനം"),
-        VazhipadItem("അഭിഷേകം","Abhishekam",300,"തിരുവഭിഷേകം"),
-        VazhipadItem("പുഷ്പാഞ്ജലി","Pushpanjali",51,"പൂ മാല സമർപ്പണം"),
-        VazhipadItem("തുലാഭാരം","Thulabharam",1001,"തൂക്കം"),
-        VazhipadItem("ചുറ്റുവിളക്ക്","Chuttuvilaakk",151,"ചുറ്റും വിളക്ക് തെളിക്കൽ"),
-        VazhipadItem("നിത്യ പൂജ","Nitya Pooja (Sponsor)",2001,"ഒരു ദിവസത്തെ നിത്യ പൂജ"),
-        VazhipadItem("അന്നദാനം","Annadhanam (Sponsor)",5001,"ഭക്തർക്ക് ഊണ്"),
-        VazhipadItem("ഉദ്ദിഷ്ടകാര്യ വഴിപാട്","Udishta Kaarya Vazhipad",501,"ആഗ്രഹ സഫലീകരണം"),
+        // ── Krishna (Main) ────────────────────────────────────
+        VazhipadItem("നിത്യപൂജ",                "Nitya Pooja",                   150, "ദൈനംദിന പൂജ"),
+        VazhipadItem("പുഷ്പാഞ്ജലി",             "Pushpanjali",                    10,  ""),
+        VazhipadItem("സുക്ത പുഷ്പാഞ്ജലി",       "Suktha Pushpanjali",             30,  ""),
+        VazhipadItem("നെയ്വിളക്ക്",              "Neyvilakk",                      30,  ""),
+        VazhipadItem("മാല",                      "Mala",                           50,  ""),
+        VazhipadItem("തുളസി മാല",               "Thulasi Mala",                   75,  ""),
+        VazhipadItem("ത്രിമധുരം",               "Thrimaduram",                    30,  ""),
+        VazhipadItem("മലർ നിവേദ്യം",            "Malar Nivedyam",                 20,  ""),
+        VazhipadItem("അവൽ നിവേദ്യം",            "Aval Nivedyam",                  20,  ""),
+        VazhipadItem("വെള്ള നിവേദ്യം",          "Vella Nivedyam",                 50,  ""),
+        VazhipadItem("ഉണ്ണിയപ്പ നിവേദ്യം",      "Unniyappa Nivedyam",            350,  ""),
+        VazhipadItem("നെയ്പ്പായസം",             "Neypayasam",                    100,  ""),
+        VazhipadItem("പാൽപ്പായസം",              "Palpayasam (bring milk)",        100,  "പാൽ കൊണ്ടുവരണം"),
+        VazhipadItem("ലക്ഷ്മിനാരായണ പൂജ",       "Lakshminarayana Pooja",         750,  ""),
+        VazhipadItem("നിരമാല",                  "Niramala",                     1000,  ""),
+        VazhipadItem("കളഭചാർത്ത്",              "Kalabhachaarthu",              1500,  ""),
+        VazhipadItem("ചുറ്റുവിളക്ക്",           "Chuttuvilaakk",               3000,  ""),
+        VazhipadItem("സ്വയംവര പൂജ",             "Swayamvara Pooja",            1000,  ""),
+        VazhipadItem("സർവൈശ്വര്യ പൂജ",          "Sarvaishwarya Pooja",         1500,  ""),
+        // ── Life Events ───────────────────────────────────────
+        VazhipadItem("തൊട്ടിലും കുട്ടിയും",     "Thottilum Kuttiyum",            100,  "കുട്ടിയെ സമർപ്പിക്കൽ"),
+        VazhipadItem("തുലാഭാരം",                "Thulabharam (bring item)",       100,  "സായനം കൊണ്ടുവരണം"),
+        VazhipadItem("ചോരൂൺ",                   "Choroon (Anna Prashan)",        250,  ""),
+        VazhipadItem("എഴുത്തിനിരുത്തൽ",         "Ezhuthiniruthal (Vidyarambham)",100,  ""),
+        VazhipadItem("കെട്ടുനിറ",               "Kettunira",                     100,  ""),
+        VazhipadItem("വിവാഹം",                  "Vivaaham (Wedding)",           2000,  ""),
+        VazhipadItem("മാല പൂജ",                 "Mala Pooja",                     50,  ""),
+        VazhipadItem("താക്കോൽ പൂജ",             "Thaaklkol Pooja (Vehicle Key)", 30,  ""),
+        VazhipadItem("വാഹന പൂജ",                "Vahana Pooja",                  100,  ""),
+        // ── Bhagavathi Special ────────────────────────────────
+        VazhipadItem("സ്വയംവര പുഷ്പാഞ്ജലി",    "Swayamvara Pushpanjali",         20,  "ഭഗവതി"),
+        VazhipadItem("രക്ത പുഷ്പാഞ്ജലി",        "Raktha Pushpanjali",             30,  "ഭഗവതി"),
+        VazhipadItem("കുങ്കുമാർച്ചന",           "Kunkumarchana",                  30,  "ഭഗവതി"),
+        VazhipadItem("ഗ്രന്ഥ പൂജ",              "Grantha Pooja",                  50,  "ഭഗവതി"),
+        VazhipadItem("ഇരട്ടിപ്പായസം",           "Irattipayasam",                 200,  "ഭഗവതി"),
+        VazhipadItem("ഭഗവതി സേവ",              "Bhagavathi Seva",               250,  "ഭഗവതി"),
+        // ── Ganapathi Special ─────────────────────────────────
+        VazhipadItem("തേങ്ങ മുട്ട്",            "Thenga Muttu (bring coconut)",   10,  "ഗണപതി — തേങ്ങ കൊണ്ടുവരണം"),
+        VazhipadItem("കറുക മാല",                "Karuka Mala",                   100,  "ഗണപതി"),
+        VazhipadItem("ഒറ്റ നിവേദ്യം",           "Otta Nivedyam",                 350,  "ഗണപതി"),
+        VazhipadItem("ഗണേശ പൂജ",               "Ganesha Pooja",                 150,  "ഗണപതി"),
+        VazhipadItem("ഗണപതിഹോമം",              "Ganapathi Homam",               200,  "ഗണപതി"),
     )
 
     // Today's events — hardcoded examples (#4) — replace with DB later
