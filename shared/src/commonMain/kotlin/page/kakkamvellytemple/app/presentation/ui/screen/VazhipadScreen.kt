@@ -104,7 +104,7 @@ fun VazhipadCard(item: VazhipadItem, isEn: Boolean) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(
             Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
@@ -113,11 +113,11 @@ fun VazhipadCard(item: VazhipadItem, isEn: Boolean) {
         ) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Text(if (isEn) item.nameEn else item.nameMl,
-                    style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface)
+                    style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onBackground)
                 if (item.description.isNotEmpty())
                     Text(item.description, style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        color = MaterialTheme.colorScheme.onBackground.copy(0.65f))
             }
             Surface(color = MaterialTheme.colorScheme.primary.copy(0.12f),
                 shape = RoundedCornerShape(50)) {
