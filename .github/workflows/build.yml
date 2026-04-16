@@ -1,4 +1,4 @@
-name: Build Android APK + AAB
+name: Build & Release
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    name: Build Debug APK + Signed Release AAB
+    name: Build Signed Release APK + AAB
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,8 +33,13 @@ jobs:
           key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml') }}
           restore-keys: konan-${{ runner.os }}-
 
-      - name: Build Debug APK
-        run: gradle :androidApp:assembleDebug
+      - name: Build Signed Release APK
+        run: gradle :androidApp:assembleRelease
+        env:
+          SIGNING_STORE_FILE: ${{ github.workspace }}/kakkamvelly-release.jks
+          SIGNING_STORE_PASSWORD: "kvt@2025#temple"
+          SIGNING_KEY_ALIAS: "kakkamvelly"
+          SIGNING_KEY_PASSWORD: "kvt@2025#temple"
 
       - name: Build Signed Release AAB
         run: gradle :androidApp:bundleRelease
@@ -46,23 +51,23 @@ jobs:
 
       - name: Rename outputs
         run: |
-          mv androidApp/build/outputs/apk/debug/*.apk kakkamvelly-temple.apk
-          mv androidApp/build/outputs/bundle/release/*.aab kakkamvelly-temple.aab
+          mv androidApp/build/outputs/apk/release/androidApp-release.apk kakkamvelly-temple.apk
+          mv androidApp/build/outputs/bundle/release/androidApp-release.aab kakkamvelly-temple.aab
 
-      - name: Publish to GitHub Releases
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
-          name: "കക്കംവെള്ളി ക്ഷേത്രം — Latest Build"
+          name: "v1.0.${{ github.run_number }} — കക്കംവെള്ളി ക്ഷേത്രം"
           body: |
-            ## Files
+            ## v1.0.${{ github.run_number }}
 
-            | File | Use for |
-            |------|---------|
-            | `kakkamvelly-temple.apk` | Install directly on Android phone |
-            | `kakkamvelly-temple.aab` | Upload to Google Play Store |
+            | File | Use |
+            |------|-----|
+            | `kakkamvelly-temple.apk` | Install on Android |
+            | `kakkamvelly-temple.aab` | Google Play Store |
 
-            Build #${{ github.run_number }}
+            **⚠️ First-time install:** If you have an older APK installed, uninstall it first (one-time only — future updates will work automatically).
           files: |
             kakkamvelly-temple.apk
             kakkamvelly-temple.aab
