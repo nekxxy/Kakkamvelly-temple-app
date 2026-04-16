@@ -64,45 +64,19 @@ fun LocationScreen(
         // Contacts
         Text(if (isEn) "Contact" else "ബന്ധപ്പെടുക",
             style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-    var selectedContact by remember { mutableStateOf<page.kakkamvellytemple.app.data.model.ContactPerson?>(null) }
-
         StaticData.CONTACTS.forEach { contact ->
             ListItem(
                 headlineContent = { Text(if (isEn) contact.roleEn else contact.roleMl,
                     style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium) },
                 trailingContent = {
-                    TextButton(onClick = { selectedContact = contact }) {
+                    TextButton(onClick = { onCall(contact.phone) }) {
                         Text(contact.phone, style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold)
                     }
                 },
-                modifier = androidx.compose.foundation.clickable { selectedContact = contact },
                 colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             )
         }
-
-    selectedContact?.let { contact ->
-        AlertDialog(
-            onDismissRequest = { selectedContact = null },
-            title = { Text(if (isEn) contact.roleEn else contact.roleMl) },
-            text = {
-                Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
-                    Text(contact.phone, style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                    Button(onClick = { onCall(contact.phone); selectedContact = null },
-                        modifier = Modifier.fillMaxWidth()) {
-                        Text(if (isEn) "📞 Call" else "📞 വിളിക്കൂ")
-                    }
-                    OutlinedButton(onClick = { onWhatsApp("91${contact.phone.removePrefix("+91")}"); selectedContact = null },
-                        modifier = Modifier.fillMaxWidth()) {
-                        Text("💬 WhatsApp")
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = { TextButton(onClick = { selectedContact = null }) { Text(if (isEn) "Cancel" else "റദ്ദ്") } }
-        )
-    }
     }
 }
 
