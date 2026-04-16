@@ -1,5 +1,6 @@
 package page.kakkamvellytemple.app.presentation.ui.screen
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -20,6 +21,7 @@ import page.kakkamvellytemple.app.data.repository.StaticData
 fun LocationScreen(
     onOpenMaps: (String) -> Unit,
     onCall: (String) -> Unit,
+    onWhatsApp: (String) -> Unit = {},
     isEn: Boolean = false
 ) {
     Column(
