@@ -3,6 +3,7 @@ package page.kakkamvellytemple.app.presentation.ui
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,11 +27,11 @@ sealed class NavTab(val route: String, val icon: ImageVector, val labelMl: Strin
     object Home     : NavTab("home",     Icons.Default.Home,         "മുഖ്യ",    "Home")
     object Timings  : NavTab("timings",  Icons.Default.AccessTime,   "സമയം",    "Timings")
     object Vazhipad : NavTab("vazhipad", Icons.Default.AutoAwesome,  "വഴിപാട്", "Vazhipad")
-    object Location : NavTab("location", Icons.Default.LocationOn,   "സ്ഥലം",   "Location")
+    object Gallery  : NavTab("gallery",  Icons.Default.PhotoLibrary, "ഗ്യാലറി", "Gallery")  // #5 replaced Location
     object More     : NavTab("more",     Icons.Default.MoreHoriz,    "കൂടുതൽ", "More")
 }
 
-val TABS = listOf(NavTab.Home, NavTab.Timings, NavTab.Vazhipad, NavTab.Location, NavTab.More)
+val TABS = listOf(NavTab.Home, NavTab.Timings, NavTab.Vazhipad, NavTab.Gallery, NavTab.More)
 
 @Composable
 fun KVTApp(
@@ -45,24 +46,20 @@ fun KVTApp(
         val homeVM    = remember { HomeViewModel() }
         val timingsVM = remember { TimingsViewModel() }
 
-        // Update checker
         var updateInfo by remember { mutableStateOf<page.kakkamvellytemple.app.util.UpdateInfo?>(null) }
         var updateDismissed by remember { mutableStateOf(false) }
         LaunchedEffect(Unit) {
-            kotlinx.coroutines.delay(3000) // check 3s after launch
+            kotlinx.coroutines.delay(3000)
             try { updateInfo = UpdateChecker.check() } catch (_: Exception) {}
         }
 
-        DisposableEffect(Unit) {
-            onDispose { homeVM.dispose(); timingsVM.dispose() }
-        }
+        DisposableEffect(Unit) { onDispose { homeVM.dispose(); timingsVM.dispose() } }
         val homeState by homeVM.state.collectAsState()
 
         Scaffold(
             topBar = {
                 Column {
                     KVTTopBar(isEn = isEn, onToggleLang = { isEn = !isEn })
-                    // Update banner
                     val upd = updateInfo
                     if (upd != null && upd.available && !updateDismissed) {
                         UpdateBanner(
@@ -71,18 +68,10 @@ fun KVTApp(
                             onDismiss = { updateDismissed = true }
                         )
                     }
-                    // Global status bar
-                    GlobalStatusBar(
-                        status  = homeState.darshanStatus,
-                        ann     = homeState.annadhanam,
-                        timeStr = homeState.istTimeStr,
-                        isEn    = isEn
-                    )
+                    GlobalStatusBar(homeState.darshanStatus, homeState.annadhanam, homeState.istTimeStr, isEn)
                 }
             },
-            bottomBar = {
-                KVTBottomBar(selected = selectedTab, isEn = isEn, onSelect = { selectedTab = it })
-            }
+            bottomBar = { KVTBottomBar(selectedTab, isEn) { selectedTab = it } }
         ) { padding ->
             Box(Modifier.fillMaxSize().padding(padding)) {
                 AnimatedContent(
@@ -94,7 +83,7 @@ fun KVTApp(
                         NavTab.Home     -> HomeScreen(homeVM, isEn)
                         NavTab.Timings  -> TimingsScreen(timingsVM, isEn)
                         NavTab.Vazhipad -> VazhipadScreen(onCall, onWhatsApp, isEn)
-                        NavTab.Location -> LocationScreen(onOpenMaps, onCall, isEn)
+                        NavTab.Gallery  -> GalleryScreen(onOpenUrl, isEn)
                         NavTab.More     -> MoreScreen(onOpenMaps, onCall, onWhatsApp, onOpenUrl, isEn)
                     }
                 }
@@ -103,6 +92,70 @@ fun KVTApp(
     }
 }
 
+// ── Top App Bar with styled language switcher (#1) ────────────
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun KVTTopBar(isEn: Boolean, onToggleLang: () -> Unit) {
+    TopAppBar(
+        title = {
+            Column {
+                Text("കക്കംവെള്ളി ക്ഷേത്രം", style = MaterialTheme.typography.titleMedium)
+                Text("ॐ Hare Krishna", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary.copy(0.7f))
+            }
+        },
+        actions = {
+            // Language toggle — highlighted selected, grayed other (#1)
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(0.4f), RoundedCornerShape(50))
+                    .padding(2.dp),
+                horizontalArrangement = Arrangement.spacedBy(0.dp)
+            ) {
+                LangButton("മലയാളം", selected = !isEn) { if (isEn) onToggleLang() }
+                LangButton("EN", selected = isEn) { if (!isEn) onToggleLang() }
+            }
+            Spacer(Modifier.width(8.dp))
+        },
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor    = MaterialTheme.colorScheme.surface,
+            titleContentColor = MaterialTheme.colorScheme.onSurface
+        )
+    )
+}
+
+@Composable
+private fun LangButton(label: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(
+                if (selected) MaterialTheme.colorScheme.primary
+                else Color.Transparent
+            )
+            .clickableNoRipple(onClick)
+            .padding(horizontal = 10.dp, vertical = 5.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            color = if (selected) MaterialTheme.colorScheme.onPrimary
+                    else MaterialTheme.colorScheme.onSurface.copy(0.4f)
+        )
+    }
+}
+
+fun Modifier.clickableNoRipple(onClick: () -> Unit): Modifier =
+    this.then(Modifier.clickable(
+        interactionSource = null,
+        indication = null,
+        onClick = onClick
+    ))
+
+// ── Global Status Bar ─────────────────────────────────────────
 @Composable
 fun GlobalStatusBar(
     status: page.kakkamvellytemple.app.data.model.DarshanStatus?,
@@ -133,8 +186,8 @@ fun GlobalStatusBar(
                 style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium,
                 color = dotColor, maxLines = 1
             )
-            Text("·", color = Color.White.copy(0.25f), fontSize = 10.sp)
             if (ann != null) {
+                Text("·", color = Color.White.copy(0.25f), fontSize = 10.sp)
                 Text("🍛", fontSize = 11.sp)
                 Text(
                     when {
@@ -152,31 +205,7 @@ fun GlobalStatusBar(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun KVTTopBar(isEn: Boolean, onToggleLang: () -> Unit) {
-    TopAppBar(
-        title = {
-            Column {
-                Text("കക്കംവെള്ളി ക്ഷേത്രം", style = MaterialTheme.typography.titleMedium)
-                Text("ॐ Hare Krishna", style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary.copy(0.7f))
-            }
-        },
-        actions = {
-            TextButton(onClick = onToggleLang) {
-                Text(if (isEn) "മലയാളം" else "English",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary)
-            }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-            titleContentColor = MaterialTheme.colorScheme.onSurface
-        )
-    )
-}
-
+// ── Bottom Nav ────────────────────────────────────────────────
 @Composable
 private fun KVTBottomBar(selected: NavTab, isEn: Boolean, onSelect: (NavTab) -> Unit) {
     NavigationBar(tonalElevation = 4.dp) {
@@ -187,7 +216,8 @@ private fun KVTBottomBar(selected: NavTab, isEn: Boolean, onSelect: (NavTab) -> 
                 icon = {
                     if (tab == NavTab.Vazhipad)
                         Text("ॐ", style = MaterialTheme.typography.titleLarge.copy(
-                            color = if (selected == tab) Gold else MaterialTheme.colorScheme.onSurfaceVariant))
+                            color = if (selected == tab) Gold
+                                    else MaterialTheme.colorScheme.onSurfaceVariant))
                     else Icon(tab.icon, if (isEn) tab.labelEn else tab.labelMl)
                 },
                 label = { Text(if (isEn) tab.labelEn else tab.labelMl,

@@ -6,6 +6,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
 import androidx.compose.ui.text.font.FontWeight
@@ -58,19 +62,45 @@ fun LocationScreen(
         // Contacts
         Text(if (isEn) "Contact" else "ബന്ധപ്പെടുക",
             style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+    var selectedContact by remember { mutableStateOf<page.kakkamvellytemple.app.data.model.ContactPerson?>(null) }
+
         StaticData.CONTACTS.forEach { contact ->
             ListItem(
                 headlineContent = { Text(if (isEn) contact.roleEn else contact.roleMl,
                     style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium) },
                 trailingContent = {
-                    TextButton(onClick = { onCall(contact.phone) }) {
+                    TextButton(onClick = { selectedContact = contact }) {
                         Text(contact.phone, style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold)
                     }
                 },
+                modifier = androidx.compose.foundation.clickable { selectedContact = contact },
                 colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             )
         }
+
+    selectedContact?.let { contact ->
+        AlertDialog(
+            onDismissRequest = { selectedContact = null },
+            title = { Text(if (isEn) contact.roleEn else contact.roleMl) },
+            text = {
+                Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                    Text(contact.phone, style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Button(onClick = { onCall(contact.phone); selectedContact = null },
+                        modifier = Modifier.fillMaxWidth()) {
+                        Text(if (isEn) "📞 Call" else "📞 വിളിക്കൂ")
+                    }
+                    OutlinedButton(onClick = { onWhatsApp("91${contact.phone.removePrefix("+91")}"); selectedContact = null },
+                        modifier = Modifier.fillMaxWidth()) {
+                        Text("💬 WhatsApp")
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { selectedContact = null }) { Text(if (isEn) "Cancel" else "റദ്ദ്") } }
+        )
+    }
     }
 }
 
