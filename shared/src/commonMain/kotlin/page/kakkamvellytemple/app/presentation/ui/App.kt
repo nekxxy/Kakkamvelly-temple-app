@@ -150,11 +150,7 @@ private fun LangButton(label: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 fun Modifier.clickableNoRipple(onClick: () -> Unit): Modifier =
-    this.then(Modifier.clickable(
-        interactionSource = null,
-        indication = null,
-        onClick = onClick
-    ))
+    this.then(Modifier.clickable(onClick = onClick))
 
 // ── Global Status Bar ─────────────────────────────────────────
 @Composable
