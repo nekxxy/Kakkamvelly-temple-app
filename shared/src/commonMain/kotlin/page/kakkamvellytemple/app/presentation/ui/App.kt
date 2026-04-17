@@ -30,7 +30,7 @@ sealed class NavTab(val route: String, val icon: ImageVector, val labelMl: Strin
     object Home     : NavTab("home",     Icons.Default.Home,         "മുഖ്യ",    "Home")
     object Timings  : NavTab("timings",  Icons.Default.AccessTime,   "സമയം",    "Timings")
     object Vazhipad : NavTab("vazhipad", Icons.Default.AutoAwesome,  "വഴിപാട്", "Vazhipad")
-    object Gallery  : NavTab("gallery",  Icons.Default.PhotoLibrary, "ഗ്യാലറി", "Gallery")
+    object Gallery  : NavTab("gallery",  Icons.Default.PhotoLibrary, "ക്ഷേത്രം", "Temple")
     object More     : NavTab("more",     Icons.Default.MoreHoriz,    "കൂടുതൽ", "More")
 }
 
