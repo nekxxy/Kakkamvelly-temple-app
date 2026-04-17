@@ -45,7 +45,7 @@ fun UpdateBanner(
                         color = Color(0xFF4ADE80)
                     )
                     Text(
-                        "Tap to download & install",
+                        "Downloading in background, then install",
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.White.copy(0.7f)
                     )

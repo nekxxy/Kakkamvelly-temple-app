@@ -42,7 +42,8 @@ fun KVTApp(
     onOpenMaps: (String) -> Unit = {},
     onCall: (String) -> Unit = {},
     onWhatsApp: (String) -> Unit = {},
-    onOpenUrl: (String) -> Unit = {}
+    onOpenUrl: (String) -> Unit = {},
+    onUpdate: () -> Unit = {}
 ) {
     KakkamvellyTempleTheme {
         var isEn by remember { mutableStateOf(false) }
@@ -70,7 +71,7 @@ fun KVTApp(
                     if (upd != null && upd.available && !updateDismissed) {
                         UpdateBanner(
                             version   = upd.latestVersion,
-                            onUpdate  = { onOpenUrl(upd.downloadUrl) },
+                            onUpdate  = { onUpdate(); updateDismissed = true },
                             onDismiss = { updateDismissed = true }
                         )
                     }
