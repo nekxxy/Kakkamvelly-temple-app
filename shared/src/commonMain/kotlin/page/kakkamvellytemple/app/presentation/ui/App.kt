@@ -50,6 +50,7 @@ fun KVTApp(
         val homeVM    = remember { HomeViewModel() }
         val timingsVM = remember { TimingsViewModel() }
 
+        var showAdmin by remember { mutableStateOf(false) }
         var updateInfo by remember { mutableStateOf<page.kakkamvellytemple.app.util.UpdateInfo?>(null) }
         var updateDismissed by remember { mutableStateOf(false) }
         LaunchedEffect(Unit) {
@@ -63,6 +64,10 @@ fun KVTApp(
         val pagerState = rememberPagerState(pageCount = { TABS.size })
         val scope = rememberCoroutineScope()
 
+        if (showAdmin && page.kakkamvellytemple.app.data.local.DemoAdmin.enabled) {
+            AdminScreen(onBack = { showAdmin = false }, isEn = isEn)
+            return@KakkamvellyTempleTheme
+        }
         Scaffold(
             topBar = {
                 Column {
@@ -113,7 +118,7 @@ fun KVTApp(
                     NavTab.Timings  -> TimingsScreen(timingsVM, isEn)
                     NavTab.Vazhipad -> VazhipadScreen(onCall, onWhatsApp, isEn)
                     NavTab.Gallery  -> GalleryScreen(onOpenUrl, isEn)
-                    NavTab.More     -> MoreScreen(onOpenMaps, onCall, onWhatsApp, onOpenUrl, isEn)
+                    NavTab.More     -> MoreScreen(onOpenMaps, onCall, onWhatsApp, onOpenUrl, isEn, onOpenAdmin = { showAdmin = true })
                 }
             }
         }
