@@ -81,6 +81,21 @@ fun KVTApp(
                         )
                     }
                     GlobalStatusBar(homeState.darshanStatus, homeState.annadhanam, homeState.istTimeStr, isEn)
+                    // User-visible unverified-content notice: until a committee-verified bundle
+                    // arrives from the backend, everything shown is packaged April 2026 defaults.
+                    if (!page.kakkamvellytemple.app.data.repository.ContentStore.isShowingVerifiedRemote) {
+                        Surface(color = MaterialTheme.colorScheme.errorContainer) {
+                            Text(
+                                if (isEn)
+                                    "Timings, rates and festival dates are unverified defaults pending committee confirmation"
+                                else
+                                    "സമയം, നിരക്ക്, ഉത്സവ തീയതികൾ കമ്മിറ്റി സ്ഥിരീകരിച്ചിട്ടില്ല - പരിശോധിക്കാത്ത ഡിഫോൾട്ടുകൾ",
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                    }
                 }
             },
             bottomBar = {
