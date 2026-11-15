@@ -21,3 +21,4 @@ keystore.properties
 # google-services.json is debug-local-only: a dummy satisfies local debug builds.
 # The real file and any dummy are never committed or included in archives.
 google-services.json
+backend.properties
