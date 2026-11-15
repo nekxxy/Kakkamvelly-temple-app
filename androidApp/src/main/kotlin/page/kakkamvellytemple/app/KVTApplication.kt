@@ -25,6 +25,9 @@ class KVTApplication : Application() {
         }
         createNotificationChannels()
         subscribeTopics()
+        // Connected-backend credentials (blank until configured; inert while
+        // CONNECTED_SETUP_APPROVED is false).
+        ContentSync.configureSupabase(BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_ANON_KEY)
         // Fetch latest temple content (poojas, contacts, events, rates) in the background.
         // Falls back to packaged defaults when offline or unchanged.
         appScope.launch { ContentSync.refresh() }
