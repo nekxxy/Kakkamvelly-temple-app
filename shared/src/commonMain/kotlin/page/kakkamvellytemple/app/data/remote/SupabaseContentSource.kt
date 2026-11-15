@@ -11,8 +11,7 @@ import kotlinx.serialization.Serializable
 /** PostgREST content source for the editable temple content bundle.
  *
  *  v1 maps the tables provisioned in backend schema v1+v3 (project yaizrrccoeiagvvaywsx):
- *  darshan_settings, poojas, contacts, events, gallery, vazhipad, festivals.
- *  `announcements` exists in the schema but has no bundle section yet.
+ *  darshan_settings, poojas, contacts, events, gallery, vazhipad, festivals, announcements.
  *
  *  Every table that returns zero rows maps to a null section, so an empty backend
  *  (content pending committee verification) never overrides packaged defaults.
@@ -94,6 +93,15 @@ object SupabaseContentSource {
     )
 
     @Serializable
+    private data class AnnouncementRow(
+        @SerialName("title_ml") val titleMl: String? = null,
+        @SerialName("title_en") val titleEn: String,
+        @SerialName("body_ml") val bodyMl: String? = null,
+        @SerialName("body_en") val bodyEn: String? = null,
+        val active: Boolean = true,
+    )
+
+    @Serializable
     private data class MetaRow(val section: String, val verified: Boolean = false)
 
     /** Markers that must ALL be present and verified=true before the bundle itself
@@ -101,7 +109,7 @@ object SupabaseContentSource {
      *  unverified, so the app notice stays up until every displayed section is
      *  explicitly committee-verified in the backend. */
     private val REQUIRED_META_SECTIONS = listOf(
-        "darshan_settings", "poojas", "contacts", "events", "gallery", "vazhipad", "festivals",
+        "darshan_settings", "poojas", "contacts", "events", "gallery", "vazhipad", "festivals", "announcements",
     )
 
     private suspend inline fun <reified T> getRows(client: HttpClient, s: Settings, path: String): T =
@@ -123,6 +131,7 @@ object SupabaseContentSource {
         val galleryRows: List<GalleryRow> = getRows(client, s, "gallery?active=eq.true&order=sort_order.asc")
         val vazhipadRows: List<VazhipadRow> = getRows(client, s, "vazhipad?active=eq.true&order=sort_order.asc")
         val festivalRows: List<FestivalRow> = getRows(client, s, "festivals?active=eq.true&order=date_utc_ms.asc")
+        val announcementRows: List<AnnouncementRow> = getRows(client, s, "announcements?active=eq.true&order=created_at.desc")
 
         // Verification markers are authoritative and conservative: any fetch failure,
         // absent marker or false value means unverified.
@@ -167,6 +176,9 @@ object SupabaseContentSource {
             }.ifEmpty { null },
             festivals = festivalRows.map {
                 FestivalDto(it.nameMl, it.nameEn, it.icon ?: "\uD83C\uDF38", it.dateUtcMs, it.noteMl ?: "", it.isSpecial)
+            }.ifEmpty { null },
+            announcements = announcementRows.map {
+                AnnouncementDto(it.titleMl ?: "", it.titleEn, it.bodyMl ?: "", it.bodyEn ?: "", it.active)
             }.ifEmpty { null },
             verified = metaVerified,
         )
