@@ -325,33 +325,52 @@ fun AdminScreen(onBack: () -> Unit, isEn: Boolean = false, vm: AdminViewModel = 
 
             HorizontalDivider()
 
-            // ── Gallery captions editor (image files stay on the website host) ──
-            Text(if (isEn) "Gallery Captions" else "ഗ്യാലറി അടിക്കുറിപ്പുകൾ",
+            // ── Gallery photos editor (image files stay on the website host; an
+            //    entry carries only the photo id used in .../images/<id>.jpg) ──
+            Text(if (isEn) "Gallery Photos" else "ഗ്യാലറി ചിത്രങ്ങൾ",
                 style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             var editCap by remember { mutableStateOf<Pair<Int, GalleryDto>?>(null) }
             vm.gallery.forEachIndexed { i, g ->
+                val rowError = vm.galleryErrors[i]
                 ListItem(
                     modifier = Modifier.clickable { editCap = i to g },
-                    headlineContent = { Text(if (isEn) g.captionEn else g.captionMl, style = MaterialTheme.typography.bodyMedium) },
-                    supportingContent = { Text(g.resName, style = MaterialTheme.typography.labelSmall) },
+                    headlineContent = { Text(if (isEn) g.captionEn.ifBlank { g.resName } else g.captionEn, style = MaterialTheme.typography.bodyMedium) },
+                    supportingContent = {
+                        Column {
+                            Text(g.resName.ifBlank { "(no photo id)" }, style = MaterialTheme.typography.labelSmall)
+                            rowError?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error) }
+                        }
+                    },
+                    trailingContent = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(onClick = { vm.moveGalleryPhoto(i, up = true) }, enabled = i > 0) { Text("↑") }
+                            TextButton(onClick = { vm.moveGalleryPhoto(i, up = false) }, enabled = i < vm.gallery.lastIndex) { Text("↓") }
+                            TextButton(onClick = { vm.removeGalleryPhoto(i) }) { Text("✕", color = MaterialTheme.colorScheme.error) }
+                        }
+                    },
                     colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 )
             }
+            TextButton(onClick = { vm.addGalleryPhoto() }) { Text(if (isEn) "+ Add photo" else "+ ചിത്രം ചേർക്കുക") }
             editCap?.let { (idx, gal) ->
+                var slug by remember { mutableStateOf(gal.resName) }
                 var capMl by remember { mutableStateOf(gal.captionMl) }
                 var capEn by remember { mutableStateOf(gal.captionEn) }
                 AlertDialog(
                     onDismissRequest = { editCap = null },
-                    title = { Text(gal.resName) },
+                    title = { Text(gal.resName.ifBlank { "New photo" }) },
                     text = {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(slug, { slug = it }, label = { Text("Photo id (a-z 0-9 -)") }, singleLine = true)
+                            Text("Shown from https://kakkamvellytemple.page/images/<id>.jpg",
+                                style = MaterialTheme.typography.labelSmall)
                             OutlinedTextField(capMl, { capMl = it }, label = { Text("Caption (Malayalam)") }, singleLine = true)
                             OutlinedTextField(capEn, { capEn = it }, label = { Text("Caption (English)") }, singleLine = true)
                         }
                     },
                     confirmButton = {
                         TextButton(onClick = {
-                            vm.updateGalleryCaption(idx, gal.copy(captionMl = capMl, captionEn = capEn))
+                            vm.updateGalleryPhoto(idx, gal.copy(resName = slug.trim(), captionMl = capMl, captionEn = capEn))
                             editCap = null
                         }) { Text("OK") }
                     },
