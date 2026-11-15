@@ -11,3 +11,13 @@ local.properties
 xcuserdata/
 *.xcworkspace/xcuserdata/
 Pods/
+# signing - never commit
+kakkamvelly-release.jks
+keystore_b64.txt
+keystore.properties
+*.jks
+*.keystore
+
+# google-services.json is debug-local-only: a dummy satisfies local debug builds.
+# The real file and any dummy are never committed or included in archives.
+google-services.json
