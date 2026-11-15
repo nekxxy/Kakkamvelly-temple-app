@@ -19,7 +19,8 @@ fun MoreScreen(
     onCall: (String) -> Unit,
     onWhatsApp: (String) -> Unit,
     onOpenUrl: (String) -> Unit,
-    isEn: Boolean = false
+    isEn: Boolean = false,
+    onOpenAdmin: () -> Unit = {}
 ) {
     val festivalVM = remember { FestivalViewModel() }
     var section by remember { mutableStateOf("menu") }
@@ -33,7 +34,8 @@ fun MoreScreen(
             onAbout    = { section = "about" },
             onKulam    = { section = "kulam" },
             onCall     = onCall,
-            onOpenUrl  = onOpenUrl
+            onOpenUrl  = onOpenUrl,
+            onOpenAdmin = onOpenAdmin
         )
     }
 }
@@ -45,7 +47,8 @@ private fun MoreMenu(
     onAbout: () -> Unit,
     onKulam: () -> Unit,
     onCall: (String) -> Unit,
-    onOpenUrl: (String) -> Unit
+    onOpenUrl: (String) -> Unit,
+    onOpenAdmin: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -94,6 +97,14 @@ private fun MoreMenu(
         MenuCard("🌐", if (isEn) "Temple Website" else "ക്ഷേത്ര വെബ്സൈറ്റ്",
             "kakkamvellytemple.page") {
             onOpenUrl(StaticData.WEBSITE_URL)
+        }
+
+        // Admin console (demo; debug builds only - never shipped in release)
+        if (page.kakkamvellytemple.app.data.local.DemoAdmin.enabled) {
+            MenuCard("🛠️", if (isEn) "Admin Console (Demo)" else "അഡ്മിൻ കൺസോൾ (ഡെമോ)",
+                if (isEn) "Edit events & hours, compose notices - local only" else "പരിപാടികൾ തിരുത്തുക - ലോക്കൽ മാത്രം") {
+                onOpenAdmin()
+            }
         }
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
