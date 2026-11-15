@@ -15,6 +15,7 @@ data class ContentBundle(
     val todayEvents: List<TodayEventDto>? = null,
     val festivals: List<FestivalDto>? = null,
     val gallery: List<GalleryDto>? = null,
+    val announcements: List<AnnouncementDto>? = null,
     val darshan: DarshanDto? = null,
     /** Explicit committee-verification marker from the backend. Remote origin alone
      *  does NOT imply approval: until the backend declares verified=true, the app
@@ -24,7 +25,7 @@ data class ContentBundle(
     companion object {
         val ALL_SECTIONS = listOf(
             "darshan", "morningPoojas", "eveningPoojas", "contacts",
-            "vazhipad", "todayEvents", "festivals", "gallery"
+            "vazhipad", "todayEvents", "festivals", "gallery", "announcements"
         )
     }
 
@@ -38,6 +39,7 @@ data class ContentBundle(
         if (todayEvents != null) add("todayEvents")
         if (festivals != null) add("festivals")
         if (gallery != null) add("gallery")
+        if (announcements != null) add("announcements")
     }
 
     /** True when at least one real content section came from the backend. An empty
@@ -51,4 +53,5 @@ data class ContentBundle(
 @Serializable data class TodayEventDto(val icon: String, val titleMl: String, val titleEn: String, val timeMl: String, val timeEn: String)
 @Serializable data class FestivalDto(val nameMl: String, val nameEn: String, val icon: String, val dateUtcMs: Long, val noteMl: String = "", val isSpecial: Boolean = false)
 @Serializable data class GalleryDto(val resName: String, val captionMl: String, val captionEn: String)
+@Serializable data class AnnouncementDto(val titleMl: String, val titleEn: String, val bodyMl: String = "", val bodyEn: String = "", val active: Boolean = true)
 @Serializable data class DarshanDto(val morningOpenMin: Int, val morningCloseMin: Int, val eveningOpenMin: Int, val eveningCloseMin: Int)
