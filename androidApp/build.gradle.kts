@@ -19,13 +19,19 @@ android {
 
     signingConfigs {
         create("release") {
-            // Use env vars from CI, fall back to local file if available
-            val storeFilePath = System.getenv("SIGNING_STORE_FILE")
-                ?: "${rootProject.projectDir}/kakkamvelly-release.jks"
-            storeFile     = file(storeFilePath)
-            storePassword = System.getenv("SIGNING_STORE_PASSWORD") ?: "kvt@2025#temple"
-            keyAlias      = System.getenv("SIGNING_KEY_ALIAS")      ?: "kakkamvelly"
-            keyPassword   = System.getenv("SIGNING_KEY_PASSWORD")   ?: "kvt@2025#temple"
+            // Signing credentials come ONLY from CI env vars or a local,
+            // git-ignored keystore.properties. Never commit files or values.
+            val kpf = rootProject.file("keystore.properties")
+            val kp = java.util.Properties()
+            if (kpf.exists()) kpf.inputStream().use { kp.load(it) }
+            fun prop(name: String): String? = System.getenv(name) ?: kp.getProperty(name)
+            val storeFilePath = prop("SIGNING_STORE_FILE")
+            if (storeFilePath != null) {
+                storeFile = file(storeFilePath)
+                storePassword = prop("SIGNING_STORE_PASSWORD")
+                keyAlias = prop("SIGNING_KEY_ALIAS")
+                keyPassword = prop("SIGNING_KEY_PASSWORD")
+            }
         }
     }
 
@@ -33,7 +39,7 @@ android {
         release {
             isMinifyEnabled   = true
             isShrinkResources = true
-            signingConfig     = signingConfigs.getByName("release")
+            signingConfigs.findByName("release")?.takeIf { it.storeFile != null }?.let { signingConfig = it }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
