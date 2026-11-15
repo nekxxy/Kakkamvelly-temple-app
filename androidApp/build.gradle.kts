@@ -9,20 +9,20 @@ plugins {
 
 android {
     namespace   = "page.kakkamvellytemple.app"
-    compileSdk  = 35
+    compileSdk  = 36
 
     defaultConfig {
         applicationId = "page.kakkamvellytemple.app"
         minSdk        = 24
-        targetSdk     = 35
+        targetSdk     = 36
         versionCode   = 1
         versionName   = "1.0.0"
     }
 
     signingConfigs {
         create("release") {
-            // Signing credentials come ONLY from CI env vars or a local,
-            // git-ignored keystore.properties. Never commit files or values.
+            // Signing credentials come ONLY from CI environment variables or a
+            // local, git-ignored keystore.properties. Never commit files or values.
             val kpf = rootProject.file("keystore.properties")
             val kp = Properties()
             if (kpf.exists()) kpf.inputStream().use { kp.load(it) }
@@ -57,7 +57,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
     packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
 }
 
