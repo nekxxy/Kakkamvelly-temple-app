@@ -21,7 +21,7 @@ import page.kakkamvellytemple.app.data.repository.NotApprovedException
  *  is constructed disabled by default - requestOtp/verifyOtp then fail without any
  *  network call, and nothing can send a real OTP by accident.
  *
- *  Also serves as the [AdminAuthTokenProvider] for SupabaseAdminRepository: the
+ * Also serves as the [AdminAuthTokenProvider] for SupabaseAdminRepository: the
  *  verified session's access token authorizes admin writes under server-side RLS. */
 class SupabaseAuthRepository(
     private val settings: SupabaseContentSource.Settings,
@@ -34,7 +34,7 @@ class SupabaseAuthRepository(
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    var state: AdminAuthState by mutableStateOf(AdminAuthState.SignedOut)
+    override var state: AdminAuthState by mutableStateOf(AdminAuthState.SignedOut)
         private set
 
     private var accessToken: String? = null
