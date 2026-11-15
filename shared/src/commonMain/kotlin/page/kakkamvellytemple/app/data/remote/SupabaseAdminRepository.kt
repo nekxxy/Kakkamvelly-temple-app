@@ -14,6 +14,7 @@ import page.kakkamvellytemple.app.data.repository.AdminContentSnapshot
 import page.kakkamvellytemple.app.data.repository.AdminDeniedException
 import page.kakkamvellytemple.app.data.repository.AdminRepository
 import page.kakkamvellytemple.app.data.repository.NotApprovedException
+import page.kakkamvellytemple.app.data.repository.PublishReport
 import page.kakkamvellytemple.app.data.repository.RevisionConflictException
 
 /** Admin write path over PostgREST against the server-side default-deny RLS schema.
@@ -61,6 +62,10 @@ class SupabaseAdminRepository(
     @Serializable private data class FestivalWriteRow(
         val name_ml: String, val name_en: String, val icon: String,
         val date_utc_ms: Long, val note_ml: String, val is_special: Boolean,
+    )
+    @Serializable private data class AnnouncementWriteRow(
+        val title_ml: String, val title_en: String,
+        val body_ml: String, val body_en: String, val active: Boolean,
     )
     @Serializable private data class ContentMetaRow(val section: String, val revision: Long)
 
@@ -171,7 +176,7 @@ class SupabaseAdminRepository(
      *  Each section is its own transaction - a mid-bundle failure leaves earlier
      *  sections published and later sections untouched; it never leaves one
      *  section half-written. Sections absent from the bundle are left alone. */
-    override suspend fun publishContent(snapshot: AdminContentSnapshot): Result<Unit> = runCatching {
+    override suspend fun publishContent(snapshot: AdminContentSnapshot): Result<PublishReport> = runCatching {
         val bundle = snapshot.bundle
         val token = tokenProvider.accessToken()
             ?: throw AdminDeniedException("No signed-in admin session")
@@ -179,52 +184,98 @@ class SupabaseAdminRepository(
 
         // Expected revisions come from the loaded snapshot, not a fresh read:
         // re-reading here would silently bless edits made after the admin loaded.
+        // revisionFor runs while the step list is built, so a missing revision
+        // fails BEFORE any section publishes, never mid-bundle.
         val revisions = snapshot.revisions
         fun revisionFor(section: String): Long = revisions[section]
             ?: throw IllegalStateException(
                 "Snapshot has no revision for section $section; reload before publishing")
 
+        // One ordered step per supplied section. Section names are the
+        // content_meta names, matching what the database locks and bumps.
+        val steps = mutableListOf<Pair<String, suspend () -> Unit>>()
         bundle.darshan?.let { d ->
+            val rev = revisionFor("darshan_settings")
             val rowJson = json.encodeToString(
                 DarshanWriteRow(1, d.morningOpenMin, d.morningCloseMin, d.eveningOpenMin, d.eveningCloseMin))
-            callRpc(token, "publish_darshan_settings",
-                """{"p_row":$rowJson,"p_expected_revision":${revisionFor("darshan_settings")}}""")
+            steps += "darshan_settings" to {
+                callRpc(token, "publish_darshan_settings",
+                    """{"p_row":$rowJson,"p_expected_revision":$rev}""")
+            }
         }
         if (bundle.morningPoojas != null || bundle.eveningPoojas != null) {
             // Replace semantics cover BOTH sessions: a publish with only one side
             // supplied intentionally empties the other.
+            val rev = revisionFor("poojas")
             val rows = (bundle.morningPoojas.orEmpty().map { p ->
                 PoojaWriteRow("morning", p.nameMl, p.nameEn, p.time, p.hour, p.minute)
             } + bundle.eveningPoojas.orEmpty().map { p ->
                 PoojaWriteRow("evening", p.nameMl, p.nameEn, p.time, p.hour, p.minute)
             })
-            publishRpc(token, "publish_poojas", revisionFor("poojas"), json.encodeToString(rows))
+            val rowsJson = json.encodeToString(rows)
+            steps += "poojas" to { publishRpc(token, "publish_poojas", rev, rowsJson) }
         }
         bundle.contacts?.let { contacts ->
-            publishRpc(token, "publish_contacts", revisionFor("contacts"), json.encodeToString(contacts.map {
+            val rev = revisionFor("contacts")
+            val rowsJson = json.encodeToString(contacts.map {
                 ContactWriteRow(it.roleMl, it.roleEn, it.phone, it.whatsapp)
-            }))
+            })
+            steps += "contacts" to { publishRpc(token, "publish_contacts", rev, rowsJson) }
         }
         bundle.todayEvents?.let { events ->
-            publishRpc(token, "publish_events", revisionFor("events"), json.encodeToString(events.map {
+            val rev = revisionFor("events")
+            val rowsJson = json.encodeToString(events.map {
                 EventWriteRow(it.icon, it.titleMl, it.titleEn, it.timeMl, it.timeEn)
-            }))
+            })
+            steps += "events" to { publishRpc(token, "publish_events", rev, rowsJson) }
         }
         bundle.gallery?.let { gallery ->
-            publishRpc(token, "publish_gallery", revisionFor("gallery"), json.encodeToString(gallery.map {
+            val rev = revisionFor("gallery")
+            val rowsJson = json.encodeToString(gallery.map {
                 GalleryWriteRow(it.resName, it.captionMl, it.captionEn)
-            }))
+            })
+            steps += "gallery" to { publishRpc(token, "publish_gallery", rev, rowsJson) }
         }
         bundle.vazhipad?.let { vazhipad ->
-            publishRpc(token, "publish_vazhipad", revisionFor("vazhipad"), json.encodeToString(vazhipad.map {
+            val rev = revisionFor("vazhipad")
+            val rowsJson = json.encodeToString(vazhipad.map {
                 VazhipadWriteRow(it.nameMl, it.nameEn, it.amount, it.description)
-            }))
+            })
+            steps += "vazhipad" to { publishRpc(token, "publish_vazhipad", rev, rowsJson) }
         }
         bundle.festivals?.let { festivals ->
-            publishRpc(token, "publish_festivals", revisionFor("festivals"), json.encodeToString(festivals.map {
+            val rev = revisionFor("festivals")
+            val rowsJson = json.encodeToString(festivals.map {
                 FestivalWriteRow(it.nameMl, it.nameEn, it.icon, it.dateUtcMs, it.noteMl, it.isSpecial)
-            }))
+            })
+            steps += "festivals" to { publishRpc(token, "publish_festivals", rev, rowsJson) }
         }
+        bundle.announcements?.let { announcements ->
+            val rev = revisionFor("announcements")
+            val rowsJson = json.encodeToString(announcements.map {
+                AnnouncementWriteRow(it.titleMl, it.titleEn, it.bodyMl, it.bodyEn, it.active)
+            })
+            steps += "announcements" to { publishRpc(token, "publish_announcements", rev, rowsJson) }
+        }
+
+        // Execute in order, stopping at the first failure. A failure on the
+        // FIRST section fails the whole publish with the typed exception
+        // (denial, conflict) since nothing was written. A failure on a LATER
+        // section returns a partial report recording exactly which sections
+        // committed, which failed and which were never attempted - a partial
+        // result is never presented as whole-bundle success.
+        val published = mutableListOf<String>()
+        steps.forEachIndexed { index, (section, step) ->
+            try {
+                step()
+                published += section
+            } catch (t: Throwable) {
+                if (index == 0) throw t
+                val notAttempted = steps.drop(index + 1).map { it.first }
+                return@runCatching PublishReport(published, section, t.message, notAttempted)
+            }
+        }
+        PublishReport(published)
     }
 
     /** Real notification sends stay disabled; this never touches a provider. */
