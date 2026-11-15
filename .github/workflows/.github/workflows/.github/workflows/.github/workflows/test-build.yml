@@ -1,0 +1,54 @@
+name: Test APK build (no release)
+
+# Manual-dispatch-only workflow that produces a minified release APK for
+# runtime verification (Firebase Test Lab). It never publishes a release,
+# never touches the real upload key, and keeps the artifact for 1 day.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: R8 release APK (throwaway-signed test build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Cache Konan
+        uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml') }}
+          restore-keys: konan-${{ runner.os }}-
+
+      - name: Generate throwaway test keystore (not the Play upload key)
+        run: keytool -genkeypair -v -keystore "$RUNNER_TEMP/test-only.jks" -alias testonly -keyalg RSA -keysize 2048 -validity 1 -storepass testonly -keypass testonly -dname "CN=Test Only, OU=None, O=None, L=None, ST=None, C=IN"
+
+      - name: Build minified release APK
+        run: gradle :androidApp:assembleRelease
+        env:
+          SIGNING_STORE_FILE: ${{ runner.temp }}/test-only.jks
+          SIGNING_STORE_PASSWORD: testonly
+          SIGNING_KEY_ALIAS: testonly
+          SIGNING_KEY_PASSWORD: testonly
+
+      - name: Upload APK artifact (1 day)
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-release-apk
+          path: androidApp/build/outputs/apk/release/androidApp-release.apk
+          retention-days: 1
