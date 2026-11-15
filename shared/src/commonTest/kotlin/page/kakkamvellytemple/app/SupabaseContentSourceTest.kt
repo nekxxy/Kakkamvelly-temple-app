@@ -150,10 +150,36 @@ class SupabaseContentSourceTest {
         }
     }
 
-    @Test fun refreshStaysInertWhileConnectedSetupNotApproved() = runBlocking {
-        // The held gate: CONNECTED_SETUP_APPROVED = false. refresh() must return
-        // false without touching the network or installing any bundle.
-        assertFalse(ContentSync.CONNECTED_SETUP_APPROVED)
-        assertFalse(ContentSync.refresh())
+    @Test fun notificationsStayGatedOff() {
+        // Real notification sends remain held: the app must not subscribe to FCM topics.
+        assertFalse(ContentSync.NOTIFICATION_SETUP_APPROVED)
+    }
+
+    @Test fun connectedSetupIsApprovedForContentFetch() {
+        // Connected content read was approved by the user on 2026-11-15.
+        assertTrue(ContentSync.CONNECTED_SETUP_APPROVED)
+    }
+
+    @Test fun emptyBackendBundleDoesNotCountAsVerifiedRemote() = runBlocking {
+        // Provenance rule: an empty backend must not clear the
+        // user-visible unverified-content notice.
+        val b = SupabaseContentSource.fetchBundle(clientFor { byPath(request = it) })
+        assertFalse(b.hasAnySection())
+        page.kakkamvellytemple.app.data.repository.ContentStore.install(
+            b, source = page.kakkamvellytemple.app.data.repository.ContentStore.Source.REMOTE_BACKEND)
+        assertFalse(page.kakkamvellytemple.app.data.repository.ContentStore.isShowingVerifiedRemote)
+    }
+
+    @Test fun nonEmptyBackendBundleCountsAsVerifiedRemote() = runBlocking {
+        val b = SupabaseContentSource.fetchBundle(clientFor {
+            byPath(
+                poojas = """[{"session":"morning","name_ml":"ഉഷ","name_en":"Usha","time_label":"6 AM","hour":6,"minute":0}]""",
+                request = it,
+            )
+        })
+        assertTrue(b.hasAnySection())
+        page.kakkamvellytemple.app.data.repository.ContentStore.install(
+            b, source = page.kakkamvellytemple.app.data.repository.ContentStore.Source.REMOTE_BACKEND)
+        assertTrue(page.kakkamvellytemple.app.data.repository.ContentStore.isShowingVerifiedRemote)
     }
 }
