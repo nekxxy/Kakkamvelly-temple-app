@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import page.kakkamvellytemple.app.data.remote.*
 import page.kakkamvellytemple.app.data.repository.AdminAuthState
+import page.kakkamvellytemple.app.data.repository.AdminContentSnapshot
 import page.kakkamvellytemple.app.data.repository.AdminRepository
 import page.kakkamvellytemple.app.data.repository.AuthRepository
 import page.kakkamvellytemple.app.data.repository.ContentStore
@@ -119,7 +120,9 @@ class AdminViewModel(
                 festivals = festivals,
                 gallery = gallery
             )
-            repo.publishContent(bundle)
+            // Demo mode: local-only mock backend, no concurrent editors, so the
+            // snapshot carries no server revisions to trace.
+            repo.publishContent(AdminContentSnapshot(bundle, emptyMap()))
                 .onSuccess { status = "Applied on this device (demo). Nothing published - backend not connected." }
                 .onFailure { status = "Failed: ${it.message}" }
         }
