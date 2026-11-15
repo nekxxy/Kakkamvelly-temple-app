@@ -13,7 +13,7 @@ class KVTFirebaseService : FirebaseMessagingService() {
     override fun onMessageReceived(message: RemoteMessage) {
         val title   = message.notification?.title ?: message.data["title"] ?: "ക്ഷേത്ര അറിയിപ്പ്"
         val body    = message.notification?.body  ?: message.data["body"]  ?: ""
-        val channel = message.data["channel"] ?: "festivals"
+        val channel = message.data["channel"] ?: "announcements"
 
         val intent = PendingIntent.getActivity(
             this, 0,
@@ -36,6 +36,7 @@ class KVTFirebaseService : FirebaseMessagingService() {
     }
 
     override fun onNewToken(token: String) {
-        // Send token to your backend when implemented
+        // Topic-based broadcast ("all") needs no per-device token upload.
+        // Token upload can be added here if targeted admin messaging is approved later.
     }
 }
