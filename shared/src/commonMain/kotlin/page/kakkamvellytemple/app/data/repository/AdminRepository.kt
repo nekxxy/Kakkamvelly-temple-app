@@ -11,6 +11,24 @@ class AdminContentSnapshot(
     val revisions: Map<String, Long>,
 )
 
+/** Per-section outcome of a publish. Publishing is section-atomic but NOT
+ *  bundle-atomic: when a section fails, earlier sections are already published
+ *  and later sections were never attempted. Whole-bundle success is only
+ *  [isComplete]; anything else must be presented as a partial result, never as
+ *  "content published". */
+class PublishReport(
+    /** Sections committed, in publish order. */
+    val published: List<String>,
+    /** Section whose publish failed, or null on complete success. */
+    val failed: String? = null,
+    /** Failure detail for [failed]. */
+    val error: String? = null,
+    /** Sections after [failed] that were never attempted. */
+    val notAttempted: List<String> = emptyList(),
+) {
+    val isComplete: Boolean get() = failed == null
+}
+
 /** Admin write path. Only a local mock exists until connected backend setup
  *  (Supabase/FCM credentials, auth scope) is approved by the owner. */
 interface AdminRepository {
@@ -19,7 +37,7 @@ interface AdminRepository {
     suspend fun loadSnapshot(): Result<AdminContentSnapshot>
     /** Publish the edited bundle; [AdminContentSnapshot.revisions] must be the
      *  revisions captured when the content being edited was loaded. */
-    suspend fun publishContent(snapshot: AdminContentSnapshot): Result<Unit>
+    suspend fun publishContent(snapshot: AdminContentSnapshot): Result<PublishReport>
     suspend fun sendNotification(title: String, body: String, topic: String): Result<String>
 }
 
@@ -33,9 +51,10 @@ class MockAdminRepository : AdminRepository {
     override suspend fun loadSnapshot(): Result<AdminContentSnapshot> =
         Result.success(AdminContentSnapshot(ContentStore.bundle ?: ContentBundle(), emptyMap()))
 
-    override suspend fun publishContent(snapshot: AdminContentSnapshot): Result<Unit> {
+    override suspend fun publishContent(snapshot: AdminContentSnapshot): Result<PublishReport> {
         ContentStore.install(snapshot.bundle, persist = true)  // on-device only; survives restart
-        return Result.success(Unit)
+        val sections = ContentBundle.ALL_SECTIONS.filter { it in snapshot.bundle.suppliedSections() }
+        return Result.success(PublishReport(published = sections))
     }
 
     override suspend fun sendNotification(title: String, body: String, topic: String): Result<String> {
