@@ -16,7 +16,14 @@ data class ContentBundle(
     val festivals: List<FestivalDto>? = null,
     val gallery: List<GalleryDto>? = null,
     val darshan: DarshanDto? = null,
-)
+) {
+    /** True when at least one real content section came from the backend. An empty
+     *  backend bundle (all sections null) still leaves the app on packaged defaults. */
+    fun hasAnySection(): Boolean =
+        morningPoojas != null || eveningPoojas != null || contacts != null ||
+        vazhipad != null || todayEvents != null || festivals != null ||
+        gallery != null || darshan != null
+}
 
 @Serializable data class PoojaDto(val nameMl: String, val nameEn: String, val time: String, val hour: Int, val minute: Int)
 @Serializable data class ContactDto(val roleMl: String, val roleEn: String, val phone: String, val whatsapp: String? = null)
