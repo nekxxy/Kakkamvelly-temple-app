@@ -68,6 +68,9 @@ fun AdminScreen(onBack: () -> Unit, isEn: Boolean = false, vm: AdminViewModel = 
                     color = MaterialTheme.colorScheme.onErrorContainer
                 )
             }
+            if (vm.authState != null) {
+                AdminSignInCard(vm = vm, isEn = isEn)
+            }
             vm.status?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary) }
 
             // ── Today's events editor ──
