@@ -19,16 +19,12 @@ import page.kakkamvellytemple.app.data.repository.StaticData
 import page.kakkamvellytemple.app.presentation.ui.component.NetworkImage
 import page.kakkamvellytemple.app.presentation.ui.theme.Gold
 
-private val GALLERY_IMAGES = listOf(
-    GalleryPhoto("temple-entrance-deepam",  "ക്ഷേത്ര പ്രവേശനം", "Temple Entrance"),
-    GalleryPhoto("deepam-lamp-interior",    "ദീപം",              "Deepam"),
-    GalleryPhoto("deepam-closeup",          "ദീപ ജ്യോതി",        "Sacred Flame"),
-    GalleryPhoto("hanging-lamps-corridor",  "തൂക്കുദീപം",        "Hanging Lamps"),
-    GalleryPhoto("temple-gate-entrance",    "ഗോപുരം",            "Temple Gate"),
-    GalleryPhoto("temple-front-view",       "മുൻഭാഗം",           "Front View"),
-    GalleryPhoto("temple-side-grounds",     "മൈതാനം",            "Grounds"),
-)
-private fun imageUrl(name: String) = "https://kakkamvellytemple.page/images/$name.jpg"
+private val GALLERY_IMAGES: List<GalleryPhoto> get() = StaticData.GALLERY_PHOTOS
+// Only allow simple slugs so remote content cannot inject arbitrary URLs/hosts.
+private fun imageUrl(name: String): String {
+    val slug = name.filter { it in 'a'..'z' || it in '0'..'9' || it == '-' }
+    return "https://kakkamvellytemple.page/images/$slug.jpg"
+}
 
 @Composable
 fun GalleryScreen(onOpenUrl: (String) -> Unit = {}, isEn: Boolean = false) {
