@@ -170,7 +170,9 @@ class SupabaseContentSourceTest {
         assertFalse(page.kakkamvellytemple.app.data.repository.ContentStore.isShowingVerifiedRemote)
     }
 
-    @Test fun nonEmptyBackendBundleCountsAsVerifiedRemote() = runBlocking {
+    @Test fun partialRemoteKeepsNoticeUp() = runBlocking {
+        // A partial backend (poojas only) leaves festivals etc. on packaged
+        // defaults - the unverified-content notice must stay.
         val b = SupabaseContentSource.fetchBundle(clientFor {
             byPath(
                 poojas = """[{"session":"morning","name_ml":"ഉഷ","name_en":"Usha","time_label":"6 AM","hour":6,"minute":0}]""",
@@ -180,6 +182,42 @@ class SupabaseContentSourceTest {
         assertTrue(b.hasAnySection())
         page.kakkamvellytemple.app.data.repository.ContentStore.install(
             b, source = page.kakkamvellytemple.app.data.repository.ContentStore.Source.REMOTE_BACKEND)
+        assertFalse(page.kakkamvellytemple.app.data.repository.ContentStore.isShowingVerifiedRemote)
+    }
+
+    private fun fullBundle(verified: Boolean) = page.kakkamvellytemple.app.data.remote.ContentBundle(
+        version = 1,
+        morningPoojas = listOf(page.kakkamvellytemple.app.data.remote.PoojaDto("m","M","6 AM",6,0)),
+        eveningPoojas = listOf(page.kakkamvellytemple.app.data.remote.PoojaDto("e","E","6 PM",18,0)),
+        contacts = listOf(page.kakkamvellytemple.app.data.remote.ContactDto("r","R","+911",null)),
+        vazhipad = listOf(page.kakkamvellytemple.app.data.remote.VazhipadDto("v","V",10,"")),
+        todayEvents = listOf(page.kakkamvellytemple.app.data.remote.TodayEventDto("i","t","T","a","b")),
+        festivals = listOf(page.kakkamvellytemple.app.data.remote.FestivalDto("f","F","i",0L,"",false)),
+        gallery = listOf(page.kakkamvellytemple.app.data.remote.GalleryDto("g","c","C")),
+        darshan = page.kakkamvellytemple.app.data.remote.DarshanDto(330,540,1065,1125),
+        verified = verified,
+    )
+
+    @Test fun fullRemoteWithoutVerifiedMarkerKeepsNoticeUp() {
+        // Remote origin is not committee approval: rows present, marker absent.
+        page.kakkamvellytemple.app.data.repository.ContentStore.install(
+            fullBundle(verified = false),
+            source = page.kakkamvellytemple.app.data.repository.ContentStore.Source.REMOTE_BACKEND)
+        assertFalse(page.kakkamvellytemple.app.data.repository.ContentStore.isShowingVerifiedRemote)
+    }
+
+    @Test fun fullVerifiedRemoteClearsNotice() {
+        // Every section remote-supplied AND backend marks committee-verified.
+        page.kakkamvellytemple.app.data.repository.ContentStore.install(
+            fullBundle(verified = true),
+            source = page.kakkamvellytemple.app.data.repository.ContentStore.Source.REMOTE_BACKEND)
         assertTrue(page.kakkamvellytemple.app.data.repository.ContentStore.isShowingVerifiedRemote)
+    }
+
+    @Test fun localDemoInstallClearsRemoteProvenance() {
+        page.kakkamvellytemple.app.data.repository.ContentStore.install(
+            fullBundle(verified = true),
+            source = page.kakkamvellytemple.app.data.repository.ContentStore.Source.LOCAL_DEMO)
+        assertFalse(page.kakkamvellytemple.app.data.repository.ContentStore.isShowingVerifiedRemote)
     }
 }
