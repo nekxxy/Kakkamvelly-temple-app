@@ -7,14 +7,19 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import page.kakkamvellytemple.app.data.remote.*
+import page.kakkamvellytemple.app.data.repository.AdminAuthState
 import page.kakkamvellytemple.app.data.repository.AdminRepository
+import page.kakkamvellytemple.app.data.repository.AuthRepository
 import page.kakkamvellytemple.app.data.repository.ContentStore
 import page.kakkamvellytemple.app.data.repository.MockAdminRepository
 import page.kakkamvellytemple.app.data.repository.StaticData
 
 /** Demo-mode admin state. All writes go to MockAdminRepository (on-device only) until
  *  the connected backend and auth scope are approved. */
-class AdminViewModel(private val repo: AdminRepository = MockAdminRepository()) {
+class AdminViewModel(
+    private val repo: AdminRepository = MockAdminRepository(),
+    private val auth: AuthRepository? = null,
+) {
 
     private val scope = CoroutineScope(Dispatchers.Main)
 
@@ -29,6 +34,30 @@ class AdminViewModel(private val repo: AdminRepository = MockAdminRepository()) 
     var status by mutableStateOf<String?>(null); private set
 
     val isConnected get() = repo.isConnected
+
+    /** Null when no auth repository is wired: the sign-in UI stays hidden. */
+    val authState: AdminAuthState? get() = auth?.state
+
+    fun requestOtp(destination: String) {
+        val a = auth ?: return
+        scope.launch {
+            a.requestOtp(destination)
+                .onFailure { status = "Sign-in: ${it.message}" }
+        }
+    }
+
+    fun verifyOtp(destination: String, code: String) {
+        val a = auth ?: return
+        scope.launch {
+            a.verifyOtp(destination, code)
+                .onFailure { status = "Sign-in: ${it.message}" }
+        }
+    }
+
+    fun signOut() {
+        val a = auth ?: return
+        scope.launch { a.signOut() }
+    }
 
     private fun currentEvents() = StaticData.TODAY_EVENTS.map {
         TodayEventDto(it.icon, it.titleMl, it.titleEn, it.timeMl, it.timeEn)
