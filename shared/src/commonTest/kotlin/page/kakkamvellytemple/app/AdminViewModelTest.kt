@@ -7,6 +7,7 @@ import page.kakkamvellytemple.app.data.remote.AnnouncementDto
 import page.kakkamvellytemple.app.data.remote.ContactDto
 import page.kakkamvellytemple.app.data.remote.ContentBundle
 import page.kakkamvellytemple.app.data.remote.DarshanDto
+import page.kakkamvellytemple.app.data.remote.GalleryDto
 import page.kakkamvellytemple.app.data.repository.AdminAuthState
 import page.kakkamvellytemple.app.data.repository.AdminContentSnapshot
 import page.kakkamvellytemple.app.data.repository.AdminRepository
@@ -110,6 +111,56 @@ class AdminViewModelTest {
         assertTrue(v.status.orEmpty().contains("Could not load"), "status carries the denial: ${v.status}")
         v.publish()
         assertTrue(repo.publishCalls.isEmpty())
+    }
+
+    @Test fun galleryAddRemoveReorderAndValidation() {
+        val v = vm(page.kakkamvellytemple.app.data.repository.MockAdminRepository())
+        val initial = v.gallery.size
+        assertTrue(initial > 0, "packaged gallery is non-empty")
+        assertTrue(v.galleryErrors.isEmpty(), "packaged gallery is valid")
+        v.addGalleryPhoto()
+        assertEquals(initial + 1, v.gallery.size)
+        assertTrue(v.galleryErrors.isNotEmpty(), "a blank photo id is an error until edited")
+        v.updateGalleryPhoto(initial, GalleryDto("new-photo", "അ", "New"))
+        assertTrue(v.galleryErrors.isEmpty(), "fixing the row clears its error: ${v.galleryErrors}")
+        v.moveGalleryPhoto(initial, up = true)
+        assertEquals("new-photo", v.gallery[initial - 1].resName)
+        v.moveGalleryPhoto(initial - 1, up = true)  // already at top: no-op
+        assertEquals("new-photo", v.gallery[initial - 1].resName)
+        v.removeGalleryPhoto(initial - 1)
+        assertEquals(initial, v.gallery.size)
+    }
+
+    @Test fun galleryCapStopsAdds() {
+        val v = vm(page.kakkamvellytemple.app.data.repository.MockAdminRepository())
+        val initial = v.gallery.size
+        var guard = 0
+        while (v.gallery.size < page.kakkamvellytemple.app.data.model.GalleryValidation.MAX_PHOTOS && guard++ < 100) {
+            val i = v.gallery.size
+            v.addGalleryPhoto()
+            v.updateGalleryPhoto(i, GalleryDto("p$guard", "അ", "p$guard"))
+        }
+        val before = v.gallery.size
+        v.addGalleryPhoto()
+        assertEquals(before, v.gallery.size, "add beyond the cap is refused")
+        assertTrue(v.status.orEmpty().contains("full"), "status says why: ${v.status}")
+    }
+
+    @Test fun galleryErrorsBlockDemoPublish() {
+        val v = vm(page.kakkamvellytemple.app.data.repository.MockAdminRepository())
+        v.addGalleryPhoto()  // blank photo id -> invalid
+        v.publish()
+        assertTrue(v.status.orEmpty().contains("gallery"), "status names the blocker: ${v.status}")
+    }
+
+    @Test fun galleryErrorsBlockConnectedPublishBeforeAnyCall() {
+        val repo = FakeRepo(snapshot = AdminContentSnapshot(ContentBundle(), mapOf("contacts" to 5L)))
+        val v = vm(repo, FakeAuth(AdminAuthState.SignedIn("u1")))
+        v.loadFromBackend()
+        v.addGalleryPhoto()
+        v.publish()
+        assertTrue(repo.publishCalls.isEmpty(), "invalid gallery must not reach the backend")
+        assertTrue(v.status.orEmpty().contains("gallery"), "status names the blocker: ${v.status}")
     }
 
     @Test fun partialPublishIsSurfacedAsPartialNeverSuccess() {
