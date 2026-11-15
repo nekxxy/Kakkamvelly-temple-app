@@ -76,6 +76,18 @@ object SupabaseContentSource {
         @SerialName("caption_en") val captionEn: String? = null,
     )
 
+    @Serializable
+    private data class MetaRow(val section: String, val verified: Boolean = false)
+
+    /** Markers that must ALL be present and verified=true before the bundle itself
+     *  counts as verified. vazhipad and festivals have no tables yet, but their
+     *  markers are still required: an absent, false or unreadable marker keeps the
+     *  whole bundle unverified, so the app notice stays up until every displayed
+     *  section is explicitly committee-verified in the backend. */
+    private val REQUIRED_META_SECTIONS = listOf(
+        "darshan_settings", "poojas", "contacts", "events", "gallery", "vazhipad", "festivals",
+    )
+
     private suspend inline fun <reified T> getRows(client: HttpClient, s: Settings, path: String): T =
         client.get("${s.url}/rest/v1/$path") {
             header("apikey", s.anonKey)
@@ -91,6 +103,16 @@ object SupabaseContentSource {
         val contactRows: List<ContactRow> = getRows(client, s, "contacts?order=sort_order.asc")
         val eventRows: List<EventRow> = getRows(client, s, "events?active=eq.true")
         val galleryRows: List<GalleryRow> = getRows(client, s, "gallery?active=eq.true&order=sort_order.asc")
+
+        // Verification markers are authoritative and conservative: any fetch failure,
+        // absent marker or false value means unverified.
+        val metaVerified: Boolean = try {
+            val metaRows: List<MetaRow> = getRows(client, s, "content_meta?select=section,verified")
+            val bySection = metaRows.associate { it.section to it.verified }
+            REQUIRED_META_SECTIONS.all { bySection[it] == true }
+        } catch (t: Throwable) {
+            false
+        }
 
         val darshanRow = darshanRows.firstOrNull()
 
@@ -121,6 +143,7 @@ object SupabaseContentSource {
                 DarshanDto(it.morningOpenMin, it.morningCloseMin, it.eveningOpenMin, it.eveningCloseMin)
             },
             // vazhipad + festivals: no backend tables yet (schema v2) - null keeps packaged defaults.
+            verified = metaVerified,
         )
     }
 }
