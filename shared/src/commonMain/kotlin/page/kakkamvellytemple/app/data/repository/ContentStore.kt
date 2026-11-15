@@ -21,17 +21,36 @@ object ContentStore {
     var source: Source by mutableStateOf(Source.PACKAGED_DEFAULTS)
         private set
 
-    /** True only when the shown content actually came from the backend. An empty
-     *  backend response (all sections null) means packaged defaults are still on
-     *  screen, so the unverified-content notice must stay. */
+    /** Sections actually supplied by the current remote bundle. A partial backend
+     *  leaves the remaining sections on unverified packaged defaults. */
+    var remoteSections: Set<String> by mutableStateOf(emptySet())
+        private set
+
+    /** The backend's explicit committee-verification marker. Never inferred from
+     *  row presence. */
+    var remoteVerified: Boolean by mutableStateOf(false)
+        private set
+
+    /** True only when every displayed temple fact came from the backend AND the
+     *  backend explicitly marks the content committee-verified. Anything less keeps
+     *  the user-visible unverified-content notice up. */
     val isShowingVerifiedRemote: Boolean
-        get() = source == Source.REMOTE_BACKEND && bundle?.hasAnySection() == true
+        get() = source == Source.REMOTE_BACKEND &&
+                remoteVerified &&
+                remoteSections.containsAll(ContentBundle.ALL_SECTIONS)
 
     private val json = Json { ignoreUnknownKeys = true }
 
     fun install(b: ContentBundle, persist: Boolean = false, source: Source = Source.LOCAL_DEMO) {
         bundle = b
         this.source = source
+        if (source == Source.REMOTE_BACKEND) {
+            remoteSections = b.suppliedSections()
+            remoteVerified = b.verified
+        } else {
+            remoteSections = emptySet()
+            remoteVerified = false
+        }
         if (persist) persistLocal()
     }
 
