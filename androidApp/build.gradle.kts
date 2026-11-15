@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -22,7 +24,7 @@ android {
             // Signing credentials come ONLY from CI env vars or a local,
             // git-ignored keystore.properties. Never commit files or values.
             val kpf = rootProject.file("keystore.properties")
-            val kp = java.util.Properties()
+            val kp = Properties()
             if (kpf.exists()) kpf.inputStream().use { kp.load(it) }
             fun prop(name: String): String? = System.getenv(name) ?: kp.getProperty(name)
             val storeFilePath = prop("SIGNING_STORE_FILE")
