@@ -125,7 +125,8 @@ class AdminViewModelTest {
         assertTrue(v.galleryErrors.isEmpty(), "fixing the row clears its error: ${v.galleryErrors}")
         v.moveGalleryPhoto(initial, up = true)
         assertEquals("new-photo", v.gallery[initial - 1].resName)
-        v.moveGalleryPhoto(initial - 1, up = true)  // already at top: no-op
+        v.moveGalleryPhoto(0, up = true)  // top row moving up: no-op
+        assertEquals(initial + 1, v.gallery.size)
         assertEquals("new-photo", v.gallery[initial - 1].resName)
         v.removeGalleryPhoto(initial - 1)
         assertEquals(initial, v.gallery.size)
