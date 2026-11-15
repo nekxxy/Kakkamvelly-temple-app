@@ -10,9 +10,8 @@ import kotlinx.serialization.Serializable
 
 /** PostgREST content source for the editable temple content bundle.
  *
- *  v1 maps the tables provisioned in backend schema v1 (project yaizrrccoeiagvvaywsx):
- *  darshan_settings, poojas, contacts, events, gallery. The `vazhipad` and `festivals`
- *  bundle sections have no tables yet, so they stay null and packaged defaults apply.
+ *  v1 maps the tables provisioned in backend schema v1+v3 (project yaizrrccoeiagvvaywsx):
+ *  darshan_settings, poojas, contacts, events, gallery, vazhipad, festivals.
  *  `announcements` exists in the schema but has no bundle section yet.
  *
  *  Every table that returns zero rows maps to a null section, so an empty backend
@@ -77,13 +76,30 @@ object SupabaseContentSource {
     )
 
     @Serializable
+    private data class VazhipadRow(
+        @SerialName("name_ml") val nameMl: String,
+        @SerialName("name_en") val nameEn: String,
+        @SerialName("amount_inr") val amountInr: Double,
+        @SerialName("description_ml") val descriptionMl: String? = null,
+    )
+
+    @Serializable
+    private data class FestivalRow(
+        @SerialName("name_ml") val nameMl: String,
+        @SerialName("name_en") val nameEn: String,
+        val icon: String? = null,
+        @SerialName("date_utc_ms") val dateUtcMs: Long,
+        @SerialName("note_ml") val noteMl: String? = null,
+        @SerialName("is_special") val isSpecial: Boolean = false,
+    )
+
+    @Serializable
     private data class MetaRow(val section: String, val verified: Boolean = false)
 
     /** Markers that must ALL be present and verified=true before the bundle itself
-     *  counts as verified. vazhipad and festivals have no tables yet, but their
-     *  markers are still required: an absent, false or unreadable marker keeps the
-     *  whole bundle unverified, so the app notice stays up until every displayed
-     *  section is explicitly committee-verified in the backend. */
+     *  counts as verified. An absent, false or unreadable marker keeps the whole bundle
+     *  unverified, so the app notice stays up until every displayed section is
+     *  explicitly committee-verified in the backend. */
     private val REQUIRED_META_SECTIONS = listOf(
         "darshan_settings", "poojas", "contacts", "events", "gallery", "vazhipad", "festivals",
     )
@@ -103,6 +119,8 @@ object SupabaseContentSource {
         val contactRows: List<ContactRow> = getRows(client, s, "contacts?order=sort_order.asc")
         val eventRows: List<EventRow> = getRows(client, s, "events?active=eq.true")
         val galleryRows: List<GalleryRow> = getRows(client, s, "gallery?active=eq.true&order=sort_order.asc")
+        val vazhipadRows: List<VazhipadRow> = getRows(client, s, "vazhipad?active=eq.true&order=sort_order.asc")
+        val festivalRows: List<FestivalRow> = getRows(client, s, "festivals?active=eq.true&order=date_utc_ms.asc")
 
         // Verification markers are authoritative and conservative: any fetch failure,
         // absent marker or false value means unverified.
@@ -142,7 +160,12 @@ object SupabaseContentSource {
             darshan = darshanRow?.let {
                 DarshanDto(it.morningOpenMin, it.morningCloseMin, it.eveningOpenMin, it.eveningCloseMin)
             },
-            // vazhipad + festivals: no backend tables yet (schema v2) - null keeps packaged defaults.
+            vazhipad = vazhipadRows.map {
+                VazhipadDto(it.nameMl, it.nameEn, it.amountInr.toInt(), it.descriptionMl ?: "")
+            }.ifEmpty { null },
+            festivals = festivalRows.map {
+                FestivalDto(it.nameMl, it.nameEn, it.icon ?: "\uD83C\uDF38", it.dateUtcMs, it.noteMl ?: "", it.isSpecial)
+            }.ifEmpty { null },
             verified = metaVerified,
         )
     }
