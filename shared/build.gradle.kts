@@ -33,6 +33,10 @@ kotlin {
             implementation(libs.koin.core)
             implementation(libs.koin.compose)
         }
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+            implementation(libs.kotlinx.serialization.json)
+        }
         androidMain.dependencies {
             implementation(libs.coil.compose)
             implementation(libs.coil.network)
@@ -48,7 +52,7 @@ kotlin {
 
 android {
     namespace  = "page.kakkamvellytemple.app.shared"
-    compileSdk = 35
+    compileSdk = 36
     defaultConfig { minSdk = 24 }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
