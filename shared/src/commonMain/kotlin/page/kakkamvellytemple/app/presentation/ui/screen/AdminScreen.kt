@@ -18,6 +18,7 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.toLocalDateTime
+import page.kakkamvellytemple.app.data.remote.AnnouncementDto
 import page.kakkamvellytemple.app.data.remote.ContactDto
 import page.kakkamvellytemple.app.data.remote.DarshanDto
 import page.kakkamvellytemple.app.data.remote.FestivalDto
@@ -45,10 +46,20 @@ private fun hmToMin(s: String): Int? {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminScreen(onBack: () -> Unit, isEn: Boolean = false, vm: AdminViewModel = remember { AdminViewModel() }) {
+    // Connected mode anchors the editors to the live backend content; demo mode
+    // never calls this (loadFromBackend no-ops on a non-connected repo).
+    LaunchedEffect(Unit) { vm.loadFromBackend() }
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (isEn) "Admin (Demo)" else "അഡ്മിൻ (ഡെമോ)") },
+                title = {
+                    Text(
+                        when {
+                            !vm.isConnected -> if (isEn) "Admin (Demo)" else "അഡ്മിൻ (ഡെമോ)"
+                            else -> if (isEn) "Admin" else "അഡ്മിൻ"
+                        }
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
                 }
@@ -60,16 +71,32 @@ fun AdminScreen(onBack: () -> Unit, isEn: Boolean = false, vm: AdminViewModel = 
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
-                Text(
-                    if (isEn) "Demo mode: changes stay on this phone. Sign-in and publishing turn on after the backend is approved."
-                    else "ഡെമോ മോഡ്: മാറ്റങ്ങൾ ഈ ഫോണിൽ മാത്രം. ബാക്കെൻഡ് അംഗീകരിച്ച ശേഷം മാത്രം പ്രസിദ്ധീകരണം.",
-                    Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onErrorContainer
-                )
+            if (!vm.isConnected) {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                    Text(
+                        if (isEn) "Demo mode: changes stay on this phone. Sign-in and publishing turn on after the backend is approved."
+                        else "ഡെമോ മോഡ്: മാറ്റങ്ങൾ ഈ ഫോണിൽ മാത്രം. ബാക്കെൻഡ് അംഗീകരിച്ച ശേഷം മാത്രം പ്രസിദ്ധീകരണം.",
+                        Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
             }
             if (vm.authState != null) {
                 AdminSignInCard(vm = vm, isEn = isEn)
+            }
+            if (vm.isConnected && !vm.canEdit) {
+                // Connected editors never render for a signed-out or non-admin
+                // account: the demo entry cannot grow into a production route.
+                Text(
+                    if (isEn) "Sign in as a temple admin to edit content."
+                    else "ഉള്ളടക്കം എഡിറ്റ് ചെയ്യാൻ ടെമ്പിൾ അഡ്മിനായി സൈൻ ഇൻ ചെയ്യുക.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                return@Column
+            }
+            if (vm.loading) {
+                Text(if (isEn) "Loading current content..." else "നിലവിലെ ഉള്ളടക്കം ലോഡ് ചെയ്യുന്നു...",
+                    style = MaterialTheme.typography.bodySmall)
             }
             vm.status?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary) }
 
@@ -329,6 +356,84 @@ fun AdminScreen(onBack: () -> Unit, isEn: Boolean = false, vm: AdminViewModel = 
                         }) { Text("OK") }
                     },
                     dismissButton = { TextButton(onClick = { editCap = null }) { Text("Cancel") } }
+                )
+            }
+
+            HorizontalDivider()
+
+            // ── Announcements editor ──
+            Text(if (isEn) "Announcements" else "അറിയിപ്പുകൾ",
+                style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            var editAnn by remember { mutableStateOf<Pair<Int, AnnouncementDto>?>(null) }
+            var addAnn by remember { mutableStateOf(false) }
+            if (vm.announcements.isEmpty()) {
+                Text(if (isEn) "No announcements yet." else "അറിയിപ്പുകളൊന്നുമില്ല.",
+                    style = MaterialTheme.typography.bodySmall)
+            }
+            vm.announcements.forEachIndexed { i, a ->
+                ListItem(
+                    modifier = Modifier.clickable { editAnn = i to a },
+                    headlineContent = { Text(if (isEn) a.titleEn else a.titleMl.ifBlank { a.titleEn }, style = MaterialTheme.typography.bodyMedium) },
+                    supportingContent = { Text(if (isEn) a.bodyEn else a.bodyMl, maxLines = 2, style = MaterialTheme.typography.bodySmall) },
+                    trailingContent = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(if (isEn) "Live" else "ലൈവ്", style = MaterialTheme.typography.labelSmall)
+                            Switch(checked = a.active, onCheckedChange = { vm.updateAnnouncement(i, a.copy(active = it)) })
+                            IconButton(onClick = { vm.removeAnnouncement(i) }) { Icon(Icons.Default.Delete, "Remove") }
+                        }
+                    }
+                )
+            }
+            OutlinedButton(onClick = { addAnn = true }, modifier = Modifier.fillMaxWidth()) {
+                Text(if (isEn) "Add announcement" else "അറിയിപ്പ് ചേർക്കുക")
+            }
+            if (addAnn) {
+                var titleMl by remember { mutableStateOf("") }
+                var titleEn by remember { mutableStateOf("") }
+                var bodyMl by remember { mutableStateOf("") }
+                var bodyEn by remember { mutableStateOf("") }
+                AlertDialog(
+                    onDismissRequest = { addAnn = false },
+                    title = { Text(if (isEn) "New announcement" else "പുതിയ അറിയിപ്പ്") },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(titleMl, { titleMl = it }, label = { Text("Title (Malayalam)") }, singleLine = true)
+                            OutlinedTextField(titleEn, { titleEn = it }, label = { Text("Title (English)") }, singleLine = true)
+                            OutlinedTextField(bodyMl, { bodyMl = it }, label = { Text("Message (Malayalam)") })
+                            OutlinedTextField(bodyEn, { bodyEn = it }, label = { Text("Message (English)") })
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(
+                            enabled = titleEn.isNotBlank() || titleMl.isNotBlank(),
+                            onClick = {
+                                vm.addAnnouncement(AnnouncementDto(titleMl.trim(), titleEn.trim(), bodyMl.trim(), bodyEn.trim(), true))
+                                addAnn = false
+                            }
+                        ) { Text(if (isEn) "Add" else "ചേർക്കുക") }
+                    },
+                    dismissButton = { TextButton(onClick = { addAnn = false }) { Text("Cancel") } }
+                )
+            }
+            editAnn?.let { (idx, ann) ->
+                var titleEn by remember { mutableStateOf(ann.titleEn) }
+                var bodyEn by remember { mutableStateOf(ann.bodyEn) }
+                AlertDialog(
+                    onDismissRequest = { editAnn = null },
+                    title = { Text(if (isEn) ann.titleEn else ann.titleMl) },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(titleEn, { titleEn = it }, label = { Text("Title (English)") }, singleLine = true)
+                            OutlinedTextField(bodyEn, { bodyEn = it }, label = { Text("Message (English)") })
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            vm.updateAnnouncement(idx, ann.copy(titleEn = titleEn.trim(), bodyEn = bodyEn.trim()))
+                            editAnn = null
+                        }) { Text("OK") }
+                    },
+                    dismissButton = { TextButton(onClick = { editAnn = null }) { Text("Cancel") } }
                 )
             }
 
