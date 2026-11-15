@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import page.kakkamvellytemple.app.data.model.GalleryValidation
 import page.kakkamvellytemple.app.data.remote.*
 import page.kakkamvellytemple.app.data.repository.AdminAuthState
 import page.kakkamvellytemple.app.data.repository.AdminContentSnapshot
@@ -40,6 +41,10 @@ class AdminViewModel(
     var contacts by mutableStateOf(currentContacts()); private set
     var festivals by mutableStateOf(currentFestivals()); private set
     var gallery by mutableStateOf(currentGallery()); private set
+    /** Per-row gallery validation errors (row index -> reason). Publish is
+     *  refused while this is non-empty: the visitor screen silently coerces a
+     *  bad photo id, so an invalid entry must never reach the bundle. */
+    var galleryErrors by mutableStateOf(GalleryValidation.rowErrors(currentGallery())); private set
     var announcements by mutableStateOf(currentAnnouncements()); private set
     var status by mutableStateOf<String?>(null); private set
     var loading by mutableStateOf(false); private set
@@ -126,8 +131,27 @@ class AdminViewModel(
     fun updateFestival(index: Int, f: FestivalDto) {
         festivals = festivals.mapIndexed { i, x -> if (i == index) f else x }
     }
-    fun updateGalleryCaption(index: Int, g: GalleryDto) {
+    fun updateGalleryPhoto(index: Int, g: GalleryDto) {
         gallery = gallery.mapIndexed { i, x -> if (i == index) g else x }
+        galleryErrors = GalleryValidation.rowErrors(gallery)
+    }
+    fun updateGalleryCaption(index: Int, g: GalleryDto) = updateGalleryPhoto(index, g)
+    fun addGalleryPhoto() {
+        GalleryValidation.fullError(gallery)?.let { status = it; return }
+        gallery = gallery + GalleryDto("", "", "")
+        galleryErrors = GalleryValidation.rowErrors(gallery)
+    }
+    fun removeGalleryPhoto(index: Int) {
+        gallery = gallery.filterIndexed { i, _ -> i != index }
+        galleryErrors = GalleryValidation.rowErrors(gallery)
+    }
+    fun moveGalleryPhoto(index: Int, up: Boolean) {
+        val target = if (up) index - 1 else index + 1
+        if (index !in gallery.indices || target !in gallery.indices) return
+        gallery = gallery.toMutableList().apply {
+            val tmp = this[index]; this[index] = this[target]; this[target] = tmp
+        }
+        galleryErrors = GalleryValidation.rowErrors(gallery)
     }
     fun addAnnouncement(a: AnnouncementDto) { announcements = announcements + a }
     fun removeAnnouncement(index: Int) { announcements = announcements.filterIndexed { i, _ -> i != index } }
@@ -158,6 +182,7 @@ class AdminViewModel(
                         b.festivals?.let { festivals = it }
                         b.gallery?.let { gallery = it }
                         b.announcements?.let { announcements = it }
+                        galleryErrors = GalleryValidation.rowErrors(gallery)
                     }
                     status = "Loaded current content from backend"
                 }
@@ -176,6 +201,13 @@ class AdminViewModel(
     fun publish() {
         if (repo.isConnected && !canEdit) {
             status = "Sign in as a temple admin before publishing"
+            return
+        }
+        val gErr = GalleryValidation.rowErrors(gallery)
+        if (gErr.isNotEmpty()) {
+            galleryErrors = gErr
+            val n = gErr.size
+            status = "Fix gallery errors before publishing ($n row${if (n > 1) "s" else ""})"
             return
         }
         scope.launch {
