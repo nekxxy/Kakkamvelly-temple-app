@@ -16,13 +16,33 @@ data class ContentBundle(
     val festivals: List<FestivalDto>? = null,
     val gallery: List<GalleryDto>? = null,
     val darshan: DarshanDto? = null,
+    /** Explicit committee-verification marker from the backend. Remote origin alone
+     *  does NOT imply approval: until the backend declares verified=true, the app
+     *  keeps the unverified-content notice up. */
+    val verified: Boolean = false,
 ) {
+    companion object {
+        val ALL_SECTIONS = listOf(
+            "darshan", "morningPoojas", "eveningPoojas", "contacts",
+            "vazhipad", "todayEvents", "festivals", "gallery"
+        )
+    }
+
+    /** Names of sections this bundle actually supplies (non-null). */
+    fun suppliedSections(): Set<String> = buildSet {
+        if (darshan != null) add("darshan")
+        if (morningPoojas != null) add("morningPoojas")
+        if (eveningPoojas != null) add("eveningPoojas")
+        if (contacts != null) add("contacts")
+        if (vazhipad != null) add("vazhipad")
+        if (todayEvents != null) add("todayEvents")
+        if (festivals != null) add("festivals")
+        if (gallery != null) add("gallery")
+    }
+
     /** True when at least one real content section came from the backend. An empty
      *  backend bundle (all sections null) still leaves the app on packaged defaults. */
-    fun hasAnySection(): Boolean =
-        morningPoojas != null || eveningPoojas != null || contacts != null ||
-        vazhipad != null || todayEvents != null || festivals != null ||
-        gallery != null || darshan != null
+    fun hasAnySection(): Boolean = suppliedSections().isNotEmpty()
 }
 
 @Serializable data class PoojaDto(val nameMl: String, val nameEn: String, val time: String, val hour: Int, val minute: Int)
