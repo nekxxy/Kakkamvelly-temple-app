@@ -1,9 +1,8 @@
 package page.kakkamvellytemple.app.data.repository
 
-/** Access-token provider for a signed-in admin. No enrollment or sign-in flow exists
- *  in the app yet: the production provider is wired only after the owner's
- *  auth-channel decision. Until then it returns null and every admin operation
- *  is denied. */
+/** Access-token provider for a signed-in admin. No sign-in flow exists in the app
+ *  yet; wire the production provider when auth is added. Until then it returns null
+ *  and every admin operation is denied. */
 fun interface AdminAuthTokenProvider {
     suspend fun accessToken(): String?
 }
@@ -14,5 +13,5 @@ fun interface AdminAuthTokenProvider {
  *  success. */
 class AdminDeniedException(message: String = "Admin write denied by backend") : Exception(message)
 
-/** The owner has not approved this operation (e.g. real notification sends). */
+/** This operation is not enabled (e.g. real notification sends stay disabled). */
 class NotApprovedException(message: String) : Exception(message)
