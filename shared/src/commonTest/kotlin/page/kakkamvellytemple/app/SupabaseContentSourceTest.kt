@@ -35,6 +35,8 @@ class SupabaseContentSourceTest {
         contacts: String = "[]",
         events: String = "[]",
         gallery: String = "[]",
+        vazhipad: String = "[]",
+        festivals: String = "[]",
         request: io.ktor.client.request.HttpRequestData,
     ): HttpResponseData {
         val p = request.url.encodedPath
@@ -44,6 +46,8 @@ class SupabaseContentSourceTest {
             p.endsWith("/contacts") -> ok(contacts)
             p.endsWith("/events") -> ok(events)
             p.endsWith("/gallery") -> ok(gallery)
+            p.endsWith("/vazhipad") -> ok(vazhipad)
+            p.endsWith("/festivals") -> ok(festivals)
             else -> respond("{}", HttpStatusCode.NotFound)
         }
     }
@@ -62,13 +66,21 @@ class SupabaseContentSourceTest {
             byPath(
                 darshan = """[{"morning_open_min":330,"morning_close_min":540,"evening_open_min":1065,"evening_close_min":1125,"updated_at":"2026-11-15T04:30:00+00:00"}]""",
                 poojas = """[
-                    {"session":"morning","name_ml":"ഉഷ പൂജ","name_en":"Usha Pooja","time_label":"6:00 AM","hour":6,"minute":0},
-                    {"session":"evening","name_ml":"ദീപാരാധന","name_en":"Deepa Aradhana","time_label":"5:45 PM","hour":17,"minute":45},
-                    {"session":"morning","name_ml":"നിർമ്മാല്യം","name_en":"Nirmalyam","time_label":"5:30 AM","hour":5,"minute":30}
+                    {"session":"morning","name_ml":"à´à´· à´ªàµà´","name_en":"Usha Pooja","time_label":"6:00 AM","hour":6,"minute":0},
+                    {"session":"evening","name_ml":"à´¦àµà´ªà´¾à´°à´¾à´§à´¨","name_en":"Deepa Aradhana","time_label":"5:45 PM","hour":17,"minute":45},
+                    {"session":"morning","name_ml":"à´¨à´¿àµ¼à´®àµà´®à´¾à´²àµà´¯à´","name_en":"Nirmalyam","time_label":"5:30 AM","hour":5,"minute":30}
                 ]""",
-                contacts = """[{"role_ml":"സെക്രട്ടറി","role_en":"Secretary","phone":"+919446844145","whatsapp":"+919446844145"}]""",
-                events = """[{"icon":null,"title_ml":"നിത്യ പൂജ","title_en":"Nitya Pooja","time_ml":"5:30 AM","time_en":"5:30 AM"}]""",
-                gallery = """[{"photo_path":"temple-entrance-deepam","caption_ml":"പ്രവേശനം","caption_en":"Entrance"}]""",
+                contacts = """[{"role_ml":"à´¸àµà´àµà´°à´àµà´à´±à´¿","role_en":"Secretary","phone":"+919446844145","whatsapp":"+919446844145"}]""",
+                events = """[{"icon":null,"title_ml":"à´¨à´¿à´¤àµà´¯ à´ªàµà´","title_en":"Nitya Pooja","time_ml":"5:30 AM","time_en":"5:30 AM"}]""",
+                gallery = """[{"photo_path":"temple-entrance-deepam","caption_ml":"à´ªàµà´°à´µàµà´¶à´¨à´","caption_en":"Entrance"}]""",
+                vazhipad = """[
+                    {"name_ml":"à´¨à´¿à´¤àµà´¯à´ªàµà´","name_en":"Nitya Pooja","amount_inr":150.00,"description_ml":"à´¦àµà´¨à´à´¦à´¿à´¨ à´ªàµà´"},
+                    {"name_ml":"à´ªàµà´·àµà´ªà´¾à´àµà´à´²à´¿","name_en":"Pushpanjali","amount_inr":50.0,"description_ml":null}
+                ]""",
+                festivals = """[
+                    {"name_ml":"à´µà´¿à´·àµ 2027","name_en":"Vishu Â· Kerala New Year","icon":null,"date_utc_ms":1776126600000,"note_ml":null,"is_special":true},
+                    {"name_ml":"à´¶à´¿à´µà´°à´¾à´¤àµà´°à´¿ 2027","name_en":"Maha Shivaratri","icon":"\uD83C\uDF19","date_utc_ms":1771980600000,"note_ml":"à´àµ¼à´àµà´ à´à´°à´¾à´§à´¨","is_special":false}
+                ]""",
                 request = it,
             )
         })
@@ -78,17 +90,43 @@ class SupabaseContentSourceTest {
         assertEquals(listOf("Deepa Aradhana"), b.eveningPoojas!!.map { p -> p.nameEn })
         assertEquals(6, b.morningPoojas!![0].hour)
         assertEquals("+919446844145", b.contacts!![0].phone)
-        assertEquals("🙏", b.todayEvents!![0].icon)  // null icon -> default
+        assertEquals("ð", b.todayEvents!![0].icon)  // null icon -> default
         assertEquals("temple-entrance-deepam", b.gallery!![0].resName)
+        // vazhipad: numeric(10,2) amounts become whole-rupee Ints; null description -> ""
+        assertEquals(listOf("Nitya Pooja", "Pushpanjali"), b.vazhipad!!.map { v -> v.nameEn })
+        assertEquals(150, b.vazhipad!![0].amount)
+        assertEquals("", b.vazhipad!![1].description)
+        // festivals: null icon -> default ð¸; flags and notes mapped
+        assertEquals(listOf("Vishu Â· Kerala New Year", "Maha Shivaratri"), b.festivals!!.map { f -> f.nameEn })
+        assertEquals("\uD83C\uDF38", b.festivals!![0].icon)
+        assertTrue(b.festivals!![0].isSpecial)
+        assertEquals("à´àµ¼à´àµà´ à´à´°à´¾à´§à´¨", b.festivals!![1].noteMl)
+        assertEquals(1771980600000L, b.festivals!![1].dateUtcMs)
         // version derived from darshan_settings.updated_at
         assertEquals(kotlinx.datetime.Instant.parse("2026-11-15T04:30:00+00:00").epochSeconds.toInt(), b.version)
         assertEquals("2026-11-15T04:30:00+00:00", b.updatedAt)
     }
 
+    @Test fun vazhipadAndFestivalsOnlyMapAndLeaveOthersNull(): Unit = runBlocking {
+        val b = SupabaseContentSource.fetchBundle(clientFor {
+            byPath(
+                vazhipad = """[{"name_ml":"à´µà´´à´¿à´ªà´¾à´àµ","name_en":"Offering","amount_inr":200.0,"description_ml":"à´ªàµà´°à´¤àµà´¯àµà´à´"}]""",
+                festivals = """[{"name_ml":"à´¤à´¿à´°àµà´µàµà´£à´","name_en":"Thiruvonam","icon":"\uD83C\uDF3A","date_utc_ms":1788229800000,"note_ml":"à´à´£à´","is_special":false}]""",
+                request = it,
+            )
+        })
+        assertEquals(200, b.vazhipad!![0].amount)
+        assertEquals("à´ªàµà´°à´¤àµà´¯àµà´à´", b.vazhipad!![0].description)
+        assertEquals("\uD83C\uDF3A", b.festivals!![0].icon)
+        assertFalse(b.festivals!![0].isSpecial)
+        assertNull(b.morningPoojas); assertNull(b.contacts)
+        assertNull(b.todayEvents); assertNull(b.gallery); assertNull(b.darshan)
+    }
+
     @Test fun partialBackendLeavesOtherSectionsNull() = runBlocking {
         val b = SupabaseContentSource.fetchBundle(clientFor {
             byPath(
-                poojas = """[{"session":"morning","name_ml":"ഉഷ","name_en":"Usha","time_label":"6 AM","hour":6,"minute":0}]""",
+                poojas = """[{"session":"morning","name_ml":"à´à´·","name_en":"Usha","time_label":"6 AM","hour":6,"minute":0}]""",
                 request = it,
             )
         })
@@ -175,7 +213,7 @@ class SupabaseContentSourceTest {
         // defaults - the unverified-content notice must stay.
         val b = SupabaseContentSource.fetchBundle(clientFor {
             byPath(
-                poojas = """[{"session":"morning","name_ml":"ഉഷ","name_en":"Usha","time_label":"6 AM","hour":6,"minute":0}]""",
+                poojas = """[{"session":"morning","name_ml":"à´à´·","name_en":"Usha","time_label":"6 AM","hour":6,"minute":0}]""",
                 request = it,
             )
         })
