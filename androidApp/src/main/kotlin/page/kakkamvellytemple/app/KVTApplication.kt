@@ -34,8 +34,8 @@ class KVTApplication : Application() {
     }
 
     private fun subscribeTopics() {
-        // Inert until connected setup is approved: no real FCM subscriptions yet.
-        if (!ContentSync.CONNECTED_SETUP_APPROVED) return
+        // Inert until notification setup is approved: no real FCM subscriptions yet.
+        if (!ContentSync.NOTIFICATION_SETUP_APPROVED) return
         for (topic in listOf("all", "festivals", "annadhanam", "announcements")) {
             FirebaseMessaging.getInstance().subscribeToTopic(topic)
         }
