@@ -38,6 +38,13 @@ jobs:
       - name: Unit tests (shared)
         run: gradle :shared:testDebugUnitTest
 
+      - name: Dump failed test reports
+        if: failure()
+        run: |
+          for f in shared/build/test-results/testDebugUnitTest/*.xml; do
+            echo "=== $f"; cat "$f"; echo;
+          done
+
       - name: Verify publishable backend config present (no values printed)
         run: |
           test -n "${SUPABASE_URL:-}" || { echo "SUPABASE_URL secret missing"; exit 1; }
