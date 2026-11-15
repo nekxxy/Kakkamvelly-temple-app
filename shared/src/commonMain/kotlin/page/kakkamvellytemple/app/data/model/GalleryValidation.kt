@@ -6,10 +6,13 @@ import page.kakkamvellytemple.app.data.remote.GalleryDto
  *
  *  Photo FILES live on the temple website host (kakkamvellytemple.page/images/<slug>.jpg);
  *  the app and backend carry only the slug plus captions. The visitor screen
- *  (GalleryScreen.imageUrl) silently coerces a bad slug to a safe value, which
- *  would render the WRONG photo without any error - so the admin side rejects
- *  bad entries before they can be published. The slug rule here mirrors that
- *  filter exactly; keep the two in sync. */
+ *  (GalleryScreen.imageUrl) silently COERCES a bad slug (drops chars outside
+ *  [a-z0-9-]) instead of rejecting it, which would render the WRONG photo
+ *  without any error - so the admin side rejects bad entries before publish.
+ *  The charset rule mirrors that filter exactly; the renderer itself has NO
+ *  length limit. The 40-char cap here is an editor product default; the server
+ *  (migration 0005) allows up to 64 as a sanity bound - client 40 is the
+ *  strictest layer, so anything the editor accepts also passes the server. */
 object GalleryValidation {
     const val MAX_PHOTOS = 24
     const val MAX_SLUG_LEN = 40
