@@ -35,6 +35,20 @@ jobs:
           key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml') }}
           restore-keys: konan-${{ runner.os }}-
 
+      - name: Unit tests (shared)
+        run: gradle :shared:testDebugUnitTest
+
+      - name: Verify publishable backend config present (no values printed)
+        run: |
+          test -n "${SUPABASE_URL:-}" || { echo "SUPABASE_URL secret missing"; exit 1; }
+          test -n "${SUPABASE_ANON_KEY:-}" || { echo "SUPABASE_ANON_KEY secret missing"; exit 1; }
+          echo "SUPABASE_URL length: ${#SUPABASE_URL}"
+          echo "SUPABASE_ANON_KEY length: ${#SUPABASE_ANON_KEY}"
+          case "$SUPABASE_URL" in https://*.supabase.co) echo "URL shape OK";; *) echo "unexpected URL shape"; exit 1;; esac
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
       - name: Generate throwaway test keystore (not the Play upload key)
         run: keytool -genkeypair -v -keystore "$RUNNER_TEMP/test-only.jks" -alias testonly -keyalg RSA -keysize 2048 -validity 1 -storepass testonly -keypass testonly -dname "CN=Test Only, OU=None, O=None, L=None, ST=None, C=IN"
 
@@ -45,6 +59,10 @@ jobs:
           SIGNING_STORE_PASSWORD: testonly
           SIGNING_KEY_ALIAS: testonly
           SIGNING_KEY_PASSWORD: testonly
+          # Publishable (RLS-safe) backend config ONLY. Never signing keys,
+          # service-role keys, or DB passwords in this workflow.
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
       - name: Upload APK artifact (1 day)
         uses: actions/upload-artifact@v4
