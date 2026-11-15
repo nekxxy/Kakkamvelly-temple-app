@@ -41,7 +41,8 @@ class ContentMetaVerificationTest {
         {"section":"events","verified":true},
         {"section":"gallery","verified":true},
         {"section":"vazhipad","verified":true},
-        {"section":"festivals","verified":true}
+        {"section":"festivals","verified":true},
+        {"section":"announcements","verified":true}
     ]"""
 
     @Test fun metaEndpointFailureKeepsUnverified() = runBlocking {
