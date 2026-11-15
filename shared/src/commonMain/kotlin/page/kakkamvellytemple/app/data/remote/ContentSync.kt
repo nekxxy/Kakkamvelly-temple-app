@@ -15,11 +15,11 @@ import page.kakkamvellytemple.app.data.repository.ContentStore
 object ContentSync {
     const val CONTENT_URL = "https://kakkamvellytemple.page/app-content.json"
 
-    /** Connected backend setup is approved (user, 2026-11-15). Content fetch is live;
-     *  an empty/unreachable backend still falls back to packaged defaults. */
+    /** Connected content fetch is enabled. An empty or unreachable backend still
+     *  falls back to packaged defaults. */
     const val CONNECTED_SETUP_APPROVED = true
 
-    /** Real notification sends are NOT approved. While false, the app does not
+    /** Real notification sends stay disabled: while false, the app does not
      *  subscribe to FCM topics. */
     const val NOTIFICATION_SETUP_APPROVED = false
 
@@ -38,7 +38,7 @@ object ContentSync {
     }
 
     suspend fun refresh(url: String = CONTENT_URL): Boolean {
-        if (!CONNECTED_SETUP_APPROVED) return false  // inert until connected setup is approved
+        if (!CONNECTED_SETUP_APPROVED) return false  // inert while connected fetch is disabled
         return try {
         val fresh: ContentBundle =
             if (SupabaseContentSource.settings != null) SupabaseContentSource.fetchBundle(client)
