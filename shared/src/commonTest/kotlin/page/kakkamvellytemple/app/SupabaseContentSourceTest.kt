@@ -37,6 +37,7 @@ class SupabaseContentSourceTest {
         gallery: String = "[]",
         vazhipad: String = "[]",
         festivals: String = "[]",
+        announcements: String = "[]",
         request: io.ktor.client.request.HttpRequestData,
     ): HttpResponseData {
         val p = request.url.encodedPath
@@ -48,6 +49,7 @@ class SupabaseContentSourceTest {
             p.endsWith("/gallery") -> ok(gallery)
             p.endsWith("/vazhipad") -> ok(vazhipad)
             p.endsWith("/festivals") -> ok(festivals)
+            p.endsWith("/announcements") -> ok(announcements)
             else -> respond("{}", HttpStatusCode.NotFound)
         }
     }
@@ -58,6 +60,7 @@ class SupabaseContentSourceTest {
         assertNull(b.contacts); assertNull(b.todayEvents)
         assertNull(b.gallery); assertNull(b.darshan)
         assertNull(b.vazhipad); assertNull(b.festivals)
+        assertNull(b.announcements)
         assertTrue(b.version > 0)  // fetch-time fallback so a connected fetch always wins
     }
 
@@ -81,6 +84,10 @@ class SupabaseContentSourceTest {
                     {"name_ml":"വിഷു 2027","name_en":"Vishu · Kerala New Year","icon":null,"date_utc_ms":1776126600000,"note_ml":null,"is_special":true},
                     {"name_ml":"ശിവരാത്രി 2027","name_en":"Maha Shivaratri","icon":"\uD83C\uDF19","date_utc_ms":1771980600000,"note_ml":"ഊർജ്ജ ആരാധന","is_special":false}
                 ]""",
+                announcements = """[
+                    {"title_ml":"മന്ദിരം തുറന്നു","title_en":"Temple reopened","body_ml":"വിവരം","body_en":"Details","active":true},
+                    {"title_ml":null,"title_en":"Old inactive","body_ml":null,"body_en":null,"active":true}
+                ]""",
                 request = it,
             )
         })
@@ -102,6 +109,10 @@ class SupabaseContentSourceTest {
         assertTrue(b.festivals!![0].isSpecial)
         assertEquals("ഊർജ്ജ ആരാധന", b.festivals!![1].noteMl)
         assertEquals(1771980600000L, b.festivals!![1].dateUtcMs)
+        // announcements: null ml/body -> ""; both active rows map
+        assertEquals(listOf("Temple reopened", "Old inactive"), b.announcements!!.map { a -> a.titleEn })
+        assertEquals("വിവരം", b.announcements!![0].bodyMl)
+        assertEquals("", b.announcements!![1].titleMl)
         // version derived from darshan_settings.updated_at
         assertEquals(kotlinx.datetime.Instant.parse("2026-11-15T04:30:00+00:00").epochSeconds.toInt(), b.version)
         assertEquals("2026-11-15T04:30:00+00:00", b.updatedAt)
@@ -232,6 +243,7 @@ class SupabaseContentSourceTest {
         todayEvents = listOf(page.kakkamvellytemple.app.data.remote.TodayEventDto("i","t","T","a","b")),
         festivals = listOf(page.kakkamvellytemple.app.data.remote.FestivalDto("f","F","i",0L,"",false)),
         gallery = listOf(page.kakkamvellytemple.app.data.remote.GalleryDto("g","c","C")),
+        announcements = listOf(page.kakkamvellytemple.app.data.remote.AnnouncementDto("t","T","b","B",true)),
         darshan = page.kakkamvellytemple.app.data.remote.DarshanDto(330,540,1065,1125),
         verified = verified,
     )
