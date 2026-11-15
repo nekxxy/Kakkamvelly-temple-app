@@ -17,6 +17,15 @@ android {
         targetSdk     = 36
         versionCode   = 1
         versionName   = "1.0.0"
+
+        // Connected-backend credentials: injected from CI env vars or a local,
+        // git-ignored backend.properties. Blank = unconfigured (JSON endpoint / inert).
+        val bp = Properties()
+        val bpFile = rootProject.file("backend.properties")
+        if (bpFile.exists()) bpFile.inputStream().use { bp.load(it) }
+        fun backendProp(name: String): String = System.getenv(name) ?: bp.getProperty(name) ?: ""
+        buildConfigField("String", "SUPABASE_URL", "\"${backendProp("SUPABASE_URL")}\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"${backendProp("SUPABASE_ANON_KEY")}\"")
     }
 
     signingConfigs {
