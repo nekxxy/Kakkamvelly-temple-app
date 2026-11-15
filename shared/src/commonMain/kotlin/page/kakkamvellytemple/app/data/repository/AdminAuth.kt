@@ -15,3 +15,8 @@ class AdminDeniedException(message: String = "Admin write denied by backend") : 
 
 /** This operation is not enabled (e.g. real notification sends stay disabled). */
 class NotApprovedException(message: String) : Exception(message)
+
+/** The section moved on since the caller read it: a competing publish landed first.
+ *  The publish was NOT applied; re-read the section and retry with the current
+ *  revision. Raised from the database's expected-revision check (SQLSTATE 40001). */
+class RevisionConflictException(message: String) : Exception(message)
