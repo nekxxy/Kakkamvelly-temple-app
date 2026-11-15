@@ -1,10 +1,21 @@
 package page.kakkamvellytemple.app.data.repository
 
 import page.kakkamvellytemple.app.data.model.*
+import page.kakkamvellytemple.app.data.remote.ContentBundle
 
+/**
+ * Built-in default content. Every public getter first checks the remote
+ * [ContentStore] bundle (fetched by ContentSync) and falls back per-section
+ * to the defaults below, so the app works fully offline with packaged data.
+ */
 object StaticData {
 
-    val FESTIVALS = listOf(
+    private inline fun <T> remoteOrDefault(
+        pick: (ContentBundle) -> List<T>?,
+        fallback: List<T>
+    ): List<T> = ContentStore.bundle?.let(pick)?.takeIf { it.isNotEmpty() } ?: fallback
+
+    private val DEFAULT_FESTIVALS = listOf(
         Festival("വിഷു 2026","Vishu · Kerala New Year","🌸",1744590600000L,"ദർശനം: 5:00 AM – 7:30 PM",true),
         Festival("അഷ്ടമി രോഹിണി 2026","Janmashtami · Birth of Krishna","🪷",1754326200000L,"ഉണ്ണി കൃഷ്ണൻ ജന്മദിനം"),
         Festival("തിരുവോണം 2026","Onam · Thiruvonam","🌺",1757779800000L,"ഓണ ദർശനം"),
@@ -30,25 +41,49 @@ object StaticData {
         Festival("തിരുവാതിര 2029","Thiruvathira","💫",1861494600000L,"ആർദ്ര ദർശനം"),
     ).sortedBy { it.dateUtcMs }
 
-    val CONTACTS = listOf(
+    val FESTIVALS: List<Festival>
+        get() = remoteOrDefault(
+            { b -> b.festivals?.map { Festival(it.nameMl, it.nameEn, it.icon, it.dateUtcMs, it.noteMl, it.isSpecial) }?.sortedBy { it.dateUtcMs } },
+            DEFAULT_FESTIVALS
+        )
+
+    private val DEFAULT_CONTACTS = listOf(
         ContactPerson("തിരുമേനി","Thirumeni","+919941292222"),
         ContactPerson("Secretary — Nanu. T","Secretary — Nanu. T","+919446844145","+919446844145"),
         ContactPerson("Jt. Secretary — Chandran P.","Jt. Secretary — Chandran Pilachery","+918086549927"),
         ContactPerson("Treasurer — Nijeesh KTK","Treasurer — Nijeesh KTK","+918594039468")
     )
 
-    val MORNING_POOJAS = listOf(
+    val CONTACTS: List<ContactPerson>
+        get() = remoteOrDefault(
+            { b -> b.contacts?.map { ContactPerson(it.roleMl, it.roleEn, it.phone, it.whatsapp) } },
+            DEFAULT_CONTACTS
+        )
+
+    private val DEFAULT_MORNING_POOJAS = listOf(
         PoojaItem("നിർമ്മാല്യദർശനം","Nirmalyam Darshan","5:30 AM",5,30),
         PoojaItem("ഉഷ പൂജ","Usha Pooja","6:00 AM",6,0),
         PoojaItem("ദീപാരാധന","Deepa Aradhana","8:00 AM",8,0),
         PoojaItem("നട അടക്കൽ","Temple Closes","9:00 AM",9,0)
     )
-    val EVENING_POOJAS = listOf(
+    val MORNING_POOJAS: List<PoojaItem>
+        get() = remoteOrDefault(
+            { b -> b.morningPoojas?.map { PoojaItem(it.nameMl, it.nameEn, it.time, it.hour, it.minute) } },
+            DEFAULT_MORNING_POOJAS
+        )
+
+    private val DEFAULT_EVENING_POOJAS = listOf(
         PoojaItem("ദീപാരാധന (സന്ധ്യ)","Evening Deepa Aradhana","5:45 PM",17,45),
         PoojaItem("നട അടക്കൽ","Temple Closes","6:45 PM",18,45)
     )
 
-    val GALLERY_PHOTOS = listOf(
+    val EVENING_POOJAS: List<PoojaItem>
+        get() = remoteOrDefault(
+            { b -> b.eveningPoojas?.map { PoojaItem(it.nameMl, it.nameEn, it.time, it.hour, it.minute) } },
+            DEFAULT_EVENING_POOJAS
+        )
+
+    private val DEFAULT_GALLERY_PHOTOS = listOf(
         GalleryPhoto("temple-entrance-deepam","ക്ഷേത്ര പ്രവേശനം — ദീപം","Temple Entrance — Deepam"),
         GalleryPhoto("deepam-lamp-interior","ദീപം — ഉൾഭാഗം","Deepam Lamp — Interior"),
         GalleryPhoto("deepam-closeup","ദീപ ജ്യോതി","Sacred Flame"),
@@ -58,8 +93,14 @@ object StaticData {
         GalleryPhoto("temple-side-grounds","ക്ഷേത്ര മൈതാനം","Temple Grounds")
     )
 
+    val GALLERY_PHOTOS: List<GalleryPhoto>
+        get() = remoteOrDefault(
+            { b -> b.gallery?.map { GalleryPhoto(it.resName, it.captionMl, it.captionEn) } },
+            DEFAULT_GALLERY_PHOTOS
+        )
+
     // Vazhipad — exact amounts from temple board (Regd. 255/94)
-    val VAZHIPAD_ITEMS = listOf(
+    private val DEFAULT_VAZHIPAD_ITEMS = listOf(
         // ── Krishna (Main) ────────────────────────────────────
         VazhipadItem("നിത്യപൂജ",                "Nitya Pooja",                   150, "ദൈനംദിന പൂജ"),
         VazhipadItem("പുഷ്പാഞ്ജലി",             "Pushpanjali",                    10,  ""),
@@ -105,17 +146,29 @@ object StaticData {
         VazhipadItem("ഗണപതിഹോമം",              "Ganapathi Homam",               200,  "ഗണപതി"),
     )
 
+    val VAZHIPAD_ITEMS: List<VazhipadItem>
+        get() = remoteOrDefault(
+            { b -> b.vazhipad?.map { VazhipadItem(it.nameMl, it.nameEn, it.amount, it.description) } },
+            DEFAULT_VAZHIPAD_ITEMS
+        )
+
     // Today's events — hardcoded examples (#4) — replace with DB later
-    val TODAY_EVENTS = listOf(
+    private val DEFAULT_TODAY_EVENTS = listOf(
         TodayEvent("🙏","നിത്യ പൂജ (രാഘവൻ കുടുംബം)","Nitya Pooja — Raghavan Family","5:30 AM","5:30 AM"),
         TodayEvent("🪔","ചുറ്റുവിളക്ക് (ദേവദാസ്)","Chuttuvilaakk — Devadas","6:00 AM","6:00 AM"),
         TodayEvent("🌸","പുഷ്പാഞ്ജലി (ശ്രേയ)","Pushpanjali — Shreya","8:00 AM","8:00 AM"),
     )
 
-    const val MORNING_OPEN  = 5 * 60 + 30
-    const val MORNING_CLOSE = 9 * 60
-    const val EVENING_OPEN  = 17 * 60 + 45
-    const val EVENING_CLOSE = 18 * 60 + 45
+    val TODAY_EVENTS: List<TodayEvent>
+        get() = remoteOrDefault(
+            { b -> b.todayEvents?.map { TodayEvent(it.icon, it.titleMl, it.titleEn, it.timeMl, it.timeEn) } },
+            DEFAULT_TODAY_EVENTS
+        )
+
+    val MORNING_OPEN:  Int get() = ContentStore.bundle?.darshan?.morningOpenMin  ?: (5 * 60 + 30)
+    val MORNING_CLOSE: Int get() = ContentStore.bundle?.darshan?.morningCloseMin ?: (9 * 60)
+    val EVENING_OPEN:  Int get() = ContentStore.bundle?.darshan?.eveningOpenMin  ?: (17 * 60 + 45)
+    val EVENING_CLOSE: Int get() = ContentStore.bundle?.darshan?.eveningCloseMin ?: (18 * 60 + 45)
     const val TEMPLE_LAT    = 11.6814
     const val TEMPLE_LON    = 75.6478
     const val WEATHER_URL   = "https://api.open-meteo.com/v1/forecast?latitude=11.6814&longitude=75.6478&current=temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m&timezone=Asia%2FKolkata"
