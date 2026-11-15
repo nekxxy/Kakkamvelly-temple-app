@@ -110,9 +110,11 @@ object SupabaseContentSource {
             header("Authorization", "Bearer ${s.anonKey}")
         }.body()
 
-    /** Fetch and assemble the content bundle. Throws on HTTP/parse errors; caller decides fallback. */
-    suspend fun fetchBundle(client: HttpClient): ContentBundle {
-        val s = settings ?: error("SupabaseContentSource not configured")
+    /** Fetch and assemble the content bundle. Throws on HTTP/parse errors; caller decides fallback.
+     *  [forSettings] overrides the global configuration (used by the admin snapshot load,
+     *  which must not mutate the app-wide singleton). */
+    suspend fun fetchBundle(client: HttpClient, forSettings: Settings? = null): ContentBundle {
+        val s = forSettings ?: settings ?: error("SupabaseContentSource not configured")
 
         val darshanRows: List<DarshanRow> = getRows(client, s, "darshan_settings?select=*")
         val poojaRows: List<PoojaRow> = getRows(client, s, "poojas?active=eq.true&order=sort_order.asc")
