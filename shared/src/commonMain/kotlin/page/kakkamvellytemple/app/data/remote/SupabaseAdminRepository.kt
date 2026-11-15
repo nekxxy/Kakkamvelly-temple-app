@@ -141,7 +141,7 @@ class SupabaseAdminRepository(
         }
     }
 
-    /** Real notification sends stay unapproved; this never touches a provider. */
+    /** Real notification sends stay disabled; this never touches a provider. */
     override suspend fun sendNotification(title: String, body: String, topic: String): Result<String> =
-        Result.failure(NotApprovedException("Real notification sends are not approved"))
+        Result.failure(NotApprovedException("Real notification sends are disabled"))
 }
