@@ -27,10 +27,18 @@ object ContentSync {
     var lastError: String? = null
         private set
 
+    /** Inject Supabase credentials at app start (from BuildConfig <- env/backend.properties).
+     *  Blank values leave the source unconfigured and refresh() uses the JSON endpoint. */
+    fun configureSupabase(url: String, anonKey: String) {
+        SupabaseContentSource.configure(url, anonKey)
+    }
+
     suspend fun refresh(url: String = CONTENT_URL): Boolean {
         if (!CONNECTED_SETUP_APPROVED) return false  // inert until connected setup is approved
         return try {
-        val fresh: ContentBundle = client.get(url).body()
+        val fresh: ContentBundle =
+            if (SupabaseContentSource.settings != null) SupabaseContentSource.fetchBundle(client)
+            else client.get(url).body()
         if (fresh.version >= (ContentStore.bundle?.version ?: Int.MIN_VALUE)) {
             ContentStore.install(fresh)
         }
