@@ -33,21 +33,24 @@ jobs:
           key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml') }}
           restore-keys: konan-${{ runner.os }}-
 
+      - name: Decode upload keystore from secrets
+        run: |
+          echo "${{ secrets.UPLOAD_KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/upload-keystore.jks"
+          echo "SIGNING_STORE_FILE=$RUNNER_TEMP/upload-keystore.jks" >> "$GITHUB_ENV"
+
       - name: Build Signed Release APK
         run: gradle :androidApp:assembleRelease
         env:
-          SIGNING_STORE_FILE: ${{ github.workspace }}/kakkamvelly-release.jks
-          SIGNING_STORE_PASSWORD: "kvt@2025#temple"
-          SIGNING_KEY_ALIAS: "kakkamvelly"
-          SIGNING_KEY_PASSWORD: "kvt@2025#temple"
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
 
       - name: Build Signed Release AAB
         run: gradle :androidApp:bundleRelease
         env:
-          SIGNING_STORE_FILE: ${{ github.workspace }}/kakkamvelly-release.jks
-          SIGNING_STORE_PASSWORD: "kvt@2025#temple"
-          SIGNING_KEY_ALIAS: "kakkamvelly"
-          SIGNING_KEY_PASSWORD: "kvt@2025#temple"
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
 
       - name: Rename outputs
         run: |
