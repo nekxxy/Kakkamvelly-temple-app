@@ -63,7 +63,7 @@ class SupabaseAdminRepositoryTest {
         assertTrue(posts.isEmpty(), "no content write may happen for a non-admin")
     }
 
-    @Test fun forbiddenWriteMapsToDenied() = runBlocking {
+    @Test fun forbiddenWriteMapsToDenied(): Unit = runBlocking {
         val repo = SupabaseAdminRepository(settings, { "fake-token" }, clientFor { req ->
             when {
                 req.url.encodedPath.endsWith("/admin_users") -> okJson("""[{"user_id":"u1"}]""")
@@ -76,7 +76,7 @@ class SupabaseAdminRepositoryTest {
         assertIs<AdminDeniedException>(result.exceptionOrNull())
     }
 
-    @Test fun emptyRepresentationIsDenialNotSuccess() = runBlocking {
+    @Test fun emptyRepresentationIsDenialNotSuccess(): Unit = runBlocking {
         // PostgREST returns success with zero rows for UPDATE/DELETE that fail RLS.
         val repo = SupabaseAdminRepository(settings, { "fake-token" }, clientFor { req ->
             when {
@@ -110,7 +110,7 @@ class SupabaseAdminRepositoryTest {
         assertEquals(listOf("darshan_settings", "contacts"), written)
     }
 
-    @Test fun unsupportedSectionsAreRejectedNotDropped() = runBlocking {
+    @Test fun unsupportedSectionsAreRejectedNotDropped(): Unit = runBlocking {
         val repo = SupabaseAdminRepository(settings, { "fake-token" }, clientFor { req ->
             okJson("""[{"user_id":"u1"}]""")
         })
@@ -122,7 +122,7 @@ class SupabaseAdminRepositoryTest {
         assertIs<UnsupportedOperationException>(result.exceptionOrNull())
     }
 
-    @Test fun notificationsStayUnsent() = runBlocking {
+    @Test fun notificationsStayUnsent(): Unit = runBlocking {
         val repo = SupabaseAdminRepository(settings, { "fake-token" }, clientFor { okJson("[]") })
         val result = repo.sendNotification("t", "b", "topic")
         assertTrue(result.isFailure)
