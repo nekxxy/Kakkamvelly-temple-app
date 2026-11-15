@@ -11,6 +11,7 @@ import io.ktor.serialization.kotlinx.json.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlin.test.*
+import page.kakkamvellytemple.app.data.remote.AnnouncementDto
 import page.kakkamvellytemple.app.data.remote.ContentBundle
 import page.kakkamvellytemple.app.data.remote.ContactDto
 import page.kakkamvellytemple.app.data.remote.DarshanDto
@@ -254,6 +255,46 @@ class SupabaseAdminRepositoryTest {
         assertEquals(listOf("publish_vazhipad", "publish_festivals"), rpcCalls)
     }
 
+    @Test fun publishIncludesAnnouncementsWithSnapshotRevision() = runBlocking {
+        val rpcBodies = mutableMapOf<String, String>()
+        val repo = SupabaseAdminRepository(settings, { "fake-token" }, rpcClient { req ->
+            val fn = req.url.encodedPath.substringAfterLast('/')
+            rpcBodies[fn] = (req.body as OutgoingContent.ByteArrayContent).bytes().decodeToString()
+            okJson("8")
+        })
+        val bundle = ContentBundle(announcements = listOf(
+            AnnouncementDto("മന്ദിരം തുറന്നു", "Temple reopened", "വിവരം", "Details", true)))
+        val result = repo.publishContent(snapshotOf(bundle, mapOf("announcements" to 7L)))
+        assertTrue(result.isSuccess, "expected success, got ${result.exceptionOrNull()}")
+        assertEquals(listOf("announcements"), result.getOrThrow().published)
+        val body = rpcBodies.getValue("publish_announcements")
+        assertTrue(body.contains("\"p_expected_revision\":7"), "snapshot revision traces: $body")
+        assertTrue(body.contains("\"title_ml\":\"മന്ദിരം തുറന്നു\""), "row payload reaches the RPC: $body")
+        assertTrue(body.contains("\"active\":true"), "active flag reaches the RPC: $body")
+    }
+
+    @Test fun midBundleFailureNamesNotAttemptedSections(): Unit = runBlocking {
+        val repo = SupabaseAdminRepository(settings, { "fake-token" }, rpcClient { req ->
+            val fn = req.url.encodedPath.substringAfterLast('/')
+            if (fn == "publish_darshan_settings") okJson("4")
+            else if (fn == "publish_contacts") errJson("42501", "admin_required", HttpStatusCode.Forbidden)
+            else okJson("1")
+        })
+        val bundle = ContentBundle(
+            darshan = DarshanDto(330, 540, 1065, 1125),
+            contacts = listOf(ContactDto("സെക്രട്ടറി", "Secretary", "+919446844145")),
+            vazhipad = listOf(VazhipadDto("നിത്യപൂജ", "Nitya Pooja", 150, "")),
+        )
+        val result = repo.publishContent(snapshotOf(bundle))
+        assertTrue(result.isSuccess)
+        val report = result.getOrThrow()
+        assertFalse(report.isComplete)
+        assertEquals(listOf("darshan_settings"), report.published)
+        assertEquals("contacts", report.failed)
+        assertEquals(listOf("vazhipad"), report.notAttempted,
+            "sections after the failure are reported as never attempted")
+    }
+
     @Test fun midBundleFailureLeavesLaterSectionsUntouched(): Unit = runBlocking {
         val rpcCalls = mutableListOf<String>()
         val repo = SupabaseAdminRepository(settings, { "fake-token" }, rpcClient { req ->
@@ -264,8 +305,12 @@ class SupabaseAdminRepositoryTest {
         })
         // darshan publishes first (own committed transaction), contacts conflicts.
         val result = repo.publishContent(snapshotOf(sampleBundle))
-        assertTrue(result.isFailure)
-        assertIs<RevisionConflictException>(result.exceptionOrNull())
+        assertTrue(result.isSuccess, "a later-section failure returns a partial report, got ${result.exceptionOrNull()}")
+        val report = result.getOrThrow()
+        assertFalse(report.isComplete, "a mid-bundle failure is never whole-bundle success")
+        assertEquals(listOf("darshan_settings"), report.published)
+        assertEquals("contacts", report.failed)
+        assertTrue(report.error.orEmpty().contains("revision_conflict"), "error carries the conflict: ${report.error}")
         assertEquals(listOf("publish_darshan_settings", "publish_contacts"), rpcCalls)
     }
 
