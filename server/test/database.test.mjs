@@ -28,7 +28,7 @@ grant select,insert,update,delete on storage.objects to authenticated,anon;
 insert into auth.users values('00000000-0000-0000-0000-000000000001'),('00000000-0000-0000-0000-000000000002');
 insert into public.admin_users values('00000000-0000-0000-0000-000000000001');
 `);
-for (const file of ['0006_visitor_dispatch_budget.sql','0007_private_photo_slots.sql','0008_private_photo_cleanup.sql','0009_private_photo_worker_lease.sql','0010_photo_publication_intent.sql','0011_photo_publication_manifest.sql','0012_photo_retirement_captions.sql']) await exec(await readFile(new URL('../../supabase/migrations/'+file,import.meta.url),'utf8'));
+for (const file of ['0006_visitor_dispatch_budget.sql','0007_private_photo_slots.sql','0008_private_photo_cleanup.sql','0009_private_photo_worker_lease.sql','0010_photo_publication_intent.sql','0011_photo_publication_manifest.sql','0012_photo_retirement_captions.sql','0013_gallery_delivery_budget.sql']) await exec(await readFile(new URL('../../supabase/migrations/'+file,import.meta.url),'utf8'));
 const recipient='a'.repeat(64); let seq=0;
 const key=()=> (++seq).toString(16).padStart(64,'0');
 const reserve=async (k=key(),r=recipient)=>(await q('select public.reserve_visitor_otp($1,$2) as value',[k,r])).rows[0].value;
@@ -300,4 +300,30 @@ test('retirement works with both feature switches off and prevents future gatewa
  await assert.rejects(committedAdmin('select public.edit_temple_photo_captions($1,$2,$3,$4)',[p.request,rev+1,'','x']),/published_photo_missing/);
  // No object delete or quota reopening occurs on retirement.
  assert.equal(Number((await q("select count(*) as n from storage.objects where bucket_id='temple-photo-gallery' and name like $1",[`${p.asset}/%`])).rows[0].n),1);
+});
+
+test('gallery delivery reservation defaults disabled and never exposes a client budget mutation',async()=>{
+ assert.equal((await q('select public.reserve_temple_gallery_delivery() as r')).rows[0].r,false);
+ for(const role of ['anon','authenticated']){
+  await assert.rejects(asUser(role,adminUid,'select public.reserve_temple_gallery_delivery()'),/permission denied/);
+  await assert.rejects(asUser(role,adminUid,'select * from temple_private.gallery_delivery_reservations'),/permission denied/);
+ }
+});
+test('concurrent image request reservations cannot overshoot payload or request ceilings',async()=>{
+ await exec(`update temple_private.photo_publication_config set delivery_enabled=true;update temple_private.gallery_delivery_budget set enabled=true,hourly_requests=10,daily_payload_bytes=8388608,monthly_payload_bytes=16777216,valid_until=clock_timestamp()+interval '1 hour'`);
+ const results=await Promise.all(Array.from({length:20},()=>q('select public.reserve_temple_gallery_delivery() as r')));
+ assert.equal(results.filter(x=>x.rows[0].r).length,2);
+ assert.equal(Number((await q('select sum(payload_bytes) as n from temple_private.gallery_delivery_reservations')).rows[0].n),8388608);
+ // Growing byte allowance does not waive hourly request ceiling.
+ await exec('update temple_private.gallery_delivery_budget set hourly_requests=2,daily_payload_bytes=16777216');
+ assert.equal((await q('select public.reserve_temple_gallery_delivery() as r')).rows[0].r,false);
+});
+test('stale or zero budget and delivery kill switch fail closed without resetting ledger',async()=>{
+ await exec("update temple_private.gallery_delivery_budget set hourly_requests=10,valid_until=clock_timestamp()-interval '1 second'");
+ assert.equal((await q('select public.reserve_temple_gallery_delivery() as r')).rows[0].r,false);
+ await exec("update temple_private.gallery_delivery_budget set valid_until=clock_timestamp()+interval '1 hour',daily_payload_bytes=0");
+ assert.equal((await q('select public.reserve_temple_gallery_delivery() as r')).rows[0].r,false);
+ await exec('update temple_private.gallery_delivery_budget set daily_payload_bytes=16777216;update temple_private.photo_publication_config set delivery_enabled=false');
+ assert.equal((await q('select public.reserve_temple_gallery_delivery() as r')).rows[0].r,false);
+ assert.equal(Number((await q('select sum(payload_bytes) as n from temple_private.gallery_delivery_reservations')).rows[0].n),8388608);
 });
