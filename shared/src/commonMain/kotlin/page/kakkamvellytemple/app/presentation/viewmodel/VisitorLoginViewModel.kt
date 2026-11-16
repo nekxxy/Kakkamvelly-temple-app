@@ -13,6 +13,8 @@ class VisitorLoginViewModel(
     private val scope: CoroutineScope,
     private val nowMs: () -> Long = { Clock.System.now().toEpochMilliseconds() },
 ) {
+    var restoring by mutableStateOf(false); private set
+    var restoreFailed by mutableStateOf(false); private set
     var phone by mutableStateOf(""); private set
     var code by mutableStateOf(""); private set
     var busy by mutableStateOf(false); private set
@@ -26,6 +28,27 @@ class VisitorLoginViewModel(
     fun updatePhone(value: String) { if (!busy && !awaitingCode) { phone = value; error = null } }
     fun updateCode(value: String) { if (!busy) { code = value; error = null } }
     fun tick() { secondsUntilResend = ((resendAt - nowMs()).coerceAtLeast(0) + 999).div(1000).toInt() }
+
+    fun restoreSession() {
+        if (busy || restoring) return
+        restoring = true
+        scope.launch {
+            try {
+                restoreFailed = auth.restoreSession().isFailure
+            } finally { restoring = false }
+        }
+    }
+
+    fun signOut() {
+        if (busy) return
+        busy = true
+        scope.launch {
+            try { auth.signOut(); code = ""; phone = ""; error = null }
+            catch (e: CancellationException) { throw e }
+            catch (_: Exception) { error = "Signed out here; server logout could not be confirmed." }
+            finally { busy = false }
+        }
+    }
 
     fun requestCode() {
         tick()
@@ -63,7 +86,10 @@ class VisitorLoginViewModel(
         if (busy) return
         busy = true
         scope.launch {
-            try { auth.signOut(); code = ""; error = null } finally { busy = false }
+            try { auth.signOut(); code = ""; error = null }
+            catch (e: CancellationException) { throw e }
+            catch (_: Exception) { error = "Could not confirm server logout. Please try again." }
+            finally { busy = false }
             // Keep cooldown across number changes. Changing a field is not a way
             // around even the client cooldown; server controls remain required.
         }
