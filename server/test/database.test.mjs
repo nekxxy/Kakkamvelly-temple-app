@@ -16,6 +16,8 @@ grant usage on schema auth to authenticated,anon,service_role;
 grant execute on function auth.uid() to authenticated,anon,service_role;
 create table public.admin_users(user_id uuid primary key);
 create function public.is_admin() returns boolean language sql security definer set search_path='' as $$ select exists(select 1 from public.admin_users where user_id=auth.uid()) $$;
+create table public.content_meta(section text primary key,revision bigint not null default 0);
+insert into public.content_meta(section) values('gallery');
 create schema storage;
 create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
 create table storage.objects(id uuid default gen_random_uuid(),bucket_id text,name text,unique(bucket_id,name));
@@ -25,7 +27,7 @@ grant select,insert,update,delete on storage.objects to authenticated,anon;
 insert into auth.users values('00000000-0000-0000-0000-000000000001'),('00000000-0000-0000-0000-000000000002');
 insert into public.admin_users values('00000000-0000-0000-0000-000000000001');
 `);
-for (const file of ['0006_visitor_dispatch_budget.sql','0007_private_photo_slots.sql','0008_private_photo_cleanup.sql','0009_private_photo_worker_lease.sql']) await exec(await readFile(new URL('../../supabase/migrations/'+file,import.meta.url),'utf8'));
+for (const file of ['0006_visitor_dispatch_budget.sql','0007_private_photo_slots.sql','0008_private_photo_cleanup.sql','0009_private_photo_worker_lease.sql','0010_photo_publication_intent.sql']) await exec(await readFile(new URL('../../supabase/migrations/'+file,import.meta.url),'utf8'));
 const recipient='a'.repeat(64); let seq=0;
 const key=()=> (++seq).toString(16).padStart(64,'0');
 const reserve=async (k=key(),r=recipient)=>(await q('select public.reserve_visitor_otp($1,$2) as value',[k,r])).rows[0].value;
@@ -110,7 +112,7 @@ test('only processed derivative has admin-only preview, never original',async()=
  await assert.rejects(asUser('authenticated','00000000-0000-0000-0000-000000000002','select public.list_private_temple_photos()'),/admin_required/);
 });
 test('all asset states count toward total capacity, not just pending',async()=>{
- await exec("truncate temple_private.photo_assets; insert into temple_private.photo_assets(created_by,original_path,state,normalized_path) select '00000000-0000-0000-0000-000000000001'::uuid,'fixture-'||i,'processed','processed-'||i from generate_series(1,24) i");
+ await exec("truncate temple_private.photo_assets cascade; insert into temple_private.photo_assets(created_by,original_path,state,normalized_path) select '00000000-0000-0000-0000-000000000001'::uuid,'fixture-'||i,'processed','processed-'||i from generate_series(1,24) i");
  await assert.rejects(asUser('authenticated','00000000-0000-0000-0000-000000000001','select public.create_photo_upload_slot()'),/photo_slots_full/);
 });
 
@@ -133,7 +135,7 @@ test('currency cannot silently change with active reservation history',async()=>
 });
 
 test('processing leases fence concurrent workers and late assertions',async()=>{
- await exec("truncate temple_private.photo_assets; update temple_private.photo_config set enabled=true");
+ await exec("truncate temple_private.photo_assets cascade; update temple_private.photo_config set enabled=true");
  const id='00000000-0000-0000-0000-000000000066';const uid='00000000-0000-0000-0000-000000000001';
  await q("insert into temple_private.photo_assets(id,created_by,original_path) values($1,$2,$3)",[id,uid,`${uid}/${id}/original`]);
  const claims=await Promise.all(Array.from({length:10},()=>q('select public.claim_private_temple_photo($1) as c',[id])));
@@ -147,4 +149,47 @@ test('processing leases fence concurrent workers and late assertions',async()=>{
  await q('select public.finish_leased_temple_photo($1,$2)',[id,next.lease_token]);
  assert.equal((await q('select normalized_path from temple_private.photo_assets where id=$1',[id])).rows[0].normalized_path,next.output_path);
  await assert.rejects(asUser('service_role','','select public.finish_temple_photo_processing($1,$2)',[id,`processed/${id}.jpg`]),/permission denied/);
+});
+
+async function committedAdmin(sql,params=[]){
+ const c=real?await db.connect():db;
+ try{await c.query('begin');await c.query('set local role authenticated');await c.query("select set_config('request.jwt.claim.sub',$1,true)",['00000000-0000-0000-0000-000000000001']);const r=await c.query(sql,params);await c.query('commit');return r;}
+ catch(e){await c.query('rollback');throw e;}finally{if(real)c.release();}
+}
+const queueSQL='select public.queue_reviewed_temple_photo($1,$2,$3,$4,$5) as r';
+const publicationAsset='00000000-0000-0000-0000-000000000055';
+const publicationRequest='00000000-0000-0000-0000-000000000044';
+const adminUid='00000000-0000-0000-0000-000000000001';
+const visitorUid='00000000-0000-0000-0000-000000000002';
+test('publication intent is default disabled and inaccessible to visitor roles',async()=>{
+ await assert.rejects(asUser('authenticated',adminUid,queueSQL,[publicationRequest,publicationAsset,0,'ml','en']),/photo_publication_disabled/);
+ await assert.rejects(asUser('authenticated',visitorUid,queueSQL,[publicationRequest,publicationAsset,0,'ml','en']),/admin_required/);
+ await assert.rejects(asUser('anon','',queueSQL,[publicationRequest,publicationAsset,0,'ml','en']),/permission denied/);
+ for(const role of ['anon','authenticated','service_role'])await assert.rejects(asUser(role,adminUid,'select * from temple_private.photo_publication_requests'),/permission denied/);
+});
+test('publication requires current gallery revision and reviewed object presence',async()=>{
+ await exec('update temple_private.photo_publication_config set enabled=true');
+ await assert.rejects(asUser('authenticated',adminUid,queueSQL,[publicationRequest,publicationAsset,1,'ml','en']),/gallery_revision_conflict/);
+ await assert.rejects(asUser('authenticated',adminUid,queueSQL,[publicationRequest,publicationAsset,0,'ml','en']),/reviewed_photo_required/);
+ await q("insert into temple_private.photo_assets(id,created_by,original_path,state,normalized_path,reviewed_by,reviewed_at) values($1,$2,$3,'reviewed',$4,$2,clock_timestamp())",[publicationAsset,adminUid,`${adminUid}/${publicationAsset}/original`,`processed/${publicationAsset}.jpg`]);
+ await assert.rejects(asUser('authenticated',adminUid,queueSQL,[publicationRequest,publicationAsset,0,'ml','en']),/reviewed_photo_required/);
+ await q("insert into storage.objects(bucket_id,name) values('temple-photo-quarantine',$1)",[`processed/${publicationAsset}.jpg`]);
+});
+test('concurrent publication retries persist once and never change captions or revision',async()=>{
+ const results=await Promise.all(Array.from({length:8},()=>committedAdmin(queueSQL,[publicationRequest,publicationAsset,0,'മലയാളം','English'])));
+ assert.ok(results.every(x=>x.rows[0].r.id===publicationRequest&&x.rows[0].r.state==='queued'));
+ assert.equal(Number((await q('select count(*) as n from temple_private.photo_publication_requests')).rows[0].n),1);
+ await assert.rejects(asUser('authenticated',adminUid,queueSQL,[publicationRequest,publicationAsset,0,'changed','English']),/publication_idempotency_conflict/);
+ assert.equal(Number((await q("select revision from public.content_meta where section='gallery'")).rows[0].revision),0);
+ assert.equal((await q("select public from storage.buckets where id='temple-photo-quarantine'")).rows[0].public,false);
+ const listed=await asUser('authenticated',adminUid,'select public.list_temple_photo_publication_requests() as r');assert.equal(listed.rows[0].r[0].caption_ml,'മലയാളം');
+ await assert.rejects(asUser('authenticated',visitorUid,'select public.list_temple_photo_publication_requests()'),/admin_required/);
+});
+test('cancellation is idempotent, works while disabled, and retry never resurrects intent',async()=>{
+ await exec('update temple_private.photo_publication_config set enabled=false');
+ await assert.rejects(asUser('authenticated',visitorUid,'select public.cancel_temple_photo_publication($1)',[publicationRequest]),/admin_required/);
+ for(let i=0;i<2;i++)assert.equal((await committedAdmin('select public.cancel_temple_photo_publication($1) as r',[publicationRequest])).rows[0].r.state,'canceled');
+ await exec('update temple_private.photo_publication_config set enabled=true');
+ assert.equal((await committedAdmin(queueSQL,[publicationRequest,publicationAsset,0,'മലയാളം','English'])).rows[0].r.state,'canceled');
+ await assert.rejects(asUser('authenticated',adminUid,queueSQL,['00000000-0000-0000-0000-000000000033',publicationAsset,0,'a'.repeat(2001),'English']),/invalid_publication_request/);
 });
