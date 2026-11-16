@@ -104,6 +104,6 @@ class VisitorWhatsAppAuth(
         pendingPhone = null
         state = VisitorAuthState.SignedOut
         try { sessions.signOut() } catch (e: CancellationException) { throw e }
-        catch (_: Exception) { throw Exception("Signed out on this device; server logout could not be confirmed") }
+        catch (_: Exception) { throw Exception("Sign-out could not be fully confirmed. Avoid using this app on a shared device.") }
     }
 }
