@@ -223,3 +223,22 @@ photo with global delivery disabled from an unpublished photo. Server flags are
 status only; they never enable the default-off client upload/publication features.
 No production navigation was added. This screen remains pixel/accessibility and
 Malayalam-review unverified; successful compile is not a visual readiness claim.
+
+### Expired pending-original tombstones (0015, unapplied)
+
+A service-only reconciliation RPC tombstones pending assets only after their
+upload deadline and processing lease have both been inactive for a one-day grace.
+It uses the same config/asset lock order as worker claims, clears any old token
+and prevents future upload/claim reuse. It leaves fresh/active work, processed
+photos, every derivative, asset rows and attempt counts alone. No quota reopens.
+The default-off reconciliation helper validates the whole returned batch, deletes
+only exact original paths through Storage API and records metadata absence at
+that check. It does not set the processed-original permanent erasure field.
+
+An already accepted Storage request can complete after a delete, so tombstones
+remain in every later reconciliation batch even after an absence confirmation.
+A later object is detected again. This is repeatable cleanup, not proof of
+permanent erasure or a cancellation mechanism for an in-flight vendor request.
+A deployed worker cadence, durable failure reporting and live Storage concurrency
+checks remain prerequisites. No cleanup job is deployed or scheduled by this
+source change. Orphan derivatives are still retained within conservative caps.
