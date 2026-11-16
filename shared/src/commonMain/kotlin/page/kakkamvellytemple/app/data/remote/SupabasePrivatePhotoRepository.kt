@@ -28,6 +28,13 @@ class SupabasePrivatePhotoRepository(
     @Serializable class PrivatePhoto(
         val id: String, val state: String, val created_at: String,
         val expires_at: String, val preview_path: String? = null,
+        val publication_id: String? = null, val publication_state: String? = null,
+        val caption_ml: String = "", val caption_en: String = "",
+
+    )
+    @Serializable class ManagementSnapshot(
+        val gallery_revision: Long, val requests_enabled: Boolean, val delivery_enabled: Boolean,
+        val photos: List<PrivatePhoto>,
     )
     @Serializable class PublicationReceipt(val id: String, val state: String)
     @Serializable private class PublicationRequest(
@@ -75,10 +82,28 @@ class SupabasePrivatePhotoRepository(
         }
         checkStatus(response.status)
         val rows: List<PrivatePhoto> = response.body()
-        check(rows.size <= 24 && rows.all { Regex("^$uuid$").matches(it.id) &&
-            it.state in listOf("pending", "processed", "reviewed") &&
-            (it.preview_path == null || Regex("^processed/${it.id}(/$uuid)?\\.jpg$").matches(it.preview_path)) })
+        check(validPhotos(rows))
         rows
+    }
+    private fun validPhotos(rows: List<PrivatePhoto>): Boolean = rows.size <= 24 && rows.map { it.id }.toSet().size == rows.size && rows.all {
+        Regex("^$uuid$").matches(it.id) && it.state in listOf("pending", "processed", "reviewed") &&
+        (it.preview_path == null || Regex("^processed/${it.id}(/$uuid)?\\.jpg$").matches(it.preview_path)) &&
+        ((it.publication_id == null && it.publication_state == null) ||
+            (it.publication_id?.let { p -> Regex("^$uuid$").matches(p) } == true &&
+                it.publication_state in listOf("queued", "canceled", "published", "retired"))) &&
+        it.caption_ml.length <= 2000 && it.caption_en.length <= 2000
+    }
+    /** One database snapshot avoids separately fetched revision/status mismatches.
+     * Server booleans describe status only; they NEVER enable a client feature. */
+    suspend fun managementSnapshot(): Result<ManagementSnapshot> = attempt {
+        val t = token()
+        val response = client.post("${settings.url}/rest/v1/rpc/get_temple_photo_management") {
+            headersFor(t); contentType(ContentType.Application.Json); setBody("{}")
+        }
+        checkStatus(response.status)
+        val snapshot: ManagementSnapshot = response.body()
+        check(snapshot.gallery_revision >= 0 && validPhotos(snapshot.photos))
+        snapshot
     }
     /** Authenticated admin read; bytes are never a public/signed URL. RLS denies
      * visitor sessions and original files. Keep previews in private memory only. */
