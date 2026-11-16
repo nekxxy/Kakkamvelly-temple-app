@@ -28,7 +28,7 @@ grant select,insert,update,delete on storage.objects to authenticated,anon;
 insert into auth.users values('00000000-0000-0000-0000-000000000001'),('00000000-0000-0000-0000-000000000002');
 insert into public.admin_users values('00000000-0000-0000-0000-000000000001');
 `);
-for (const file of ['0006_visitor_dispatch_budget.sql','0007_private_photo_slots.sql','0008_private_photo_cleanup.sql','0009_private_photo_worker_lease.sql','0010_photo_publication_intent.sql','0011_photo_publication_manifest.sql']) await exec(await readFile(new URL('../../supabase/migrations/'+file,import.meta.url),'utf8'));
+for (const file of ['0006_visitor_dispatch_budget.sql','0007_private_photo_slots.sql','0008_private_photo_cleanup.sql','0009_private_photo_worker_lease.sql','0010_photo_publication_intent.sql','0011_photo_publication_manifest.sql','0012_photo_retirement_captions.sql']) await exec(await readFile(new URL('../../supabase/migrations/'+file,import.meta.url),'utf8'));
 const recipient='a'.repeat(64); let seq=0;
 const key=()=> (++seq).toString(16).padStart(64,'0');
 const reserve=async (k=key(),r=recipient)=>(await q('select public.reserve_visitor_otp($1,$2) as value',[k,r])).rows[0].value;
@@ -260,4 +260,44 @@ test('delivery kill switch hides manifests and metadata, not only new requests',
  assert.ok((await publicPhotos()).length>=1);await exec('update temple_private.photo_publication_config set delivery_enabled=false');
  assert.deepEqual(await publicPhotos(),[]);
  assert.equal((await q('select count(*) as n from temple_private.photo_gallery_manifest')).rows[0].n.toString(),'2');
+});
+
+async function publishedPhoto(){await exec('update temple_private.photo_publication_config set enabled=true,delivery_enabled=true');const p=await queuedPhoto(),claim=await publicationClaim(p.request);await stageTarget(claim);await q('select public.finish_temple_photo_publication($1,$2)',[p.request,claim.lease_token]);return p;}
+const galleryRev=async()=>Number((await q("select revision from public.content_meta where section='gallery'")).rows[0].revision);
+test('caption edit requires admin/current revision, preserves source approval and clears verification',async()=>{
+ const p=await publishedPhoto(),rev=await galleryRev();
+ const sql='select public.edit_temple_photo_captions($1,$2,$3,$4) as r';
+ await assert.rejects(asUser('authenticated',visitorUid,sql,[p.request,rev,'ml','en']),/admin_required/);
+ await assert.rejects(asUser('anon','',sql,[p.request,rev,'ml','en']),/permission denied/);
+ await assert.rejects(committedAdmin(sql,[p.request,rev-1,'ml','en']),/gallery_revision_conflict/);
+ await exec("update public.content_meta set verified=true where section='gallery'");
+ assert.equal(Number((await committedAdmin(sql,[p.request,rev,'പുതിയ കുറിപ്പ്','New caption'])).rows[0].r),rev+1);
+ assert.equal((await q("select verified from public.content_meta where section='gallery'")).rows[0].verified,false);
+ const listed=(await publicPhotos()).find(x=>x.publication_id===p.request);assert.equal(listed.caption_en,'New caption');
+ // Original approved request stays unchanged, and the revision-attributed edit is retained.
+ assert.equal((await q('select caption_en from temple_private.photo_publication_requests where id=$1',[p.request])).rows[0].caption_en,'An exact caption');
+ assert.equal(Number((await q('select count(*) as n from temple_private.photo_gallery_changes where publication_id=$1',[p.request])).rows[0].n),1);
+ assert.equal(Number((await committedAdmin(sql,[p.request,rev+1,'പുതിയ കുറിപ്പ്','New caption'])).rows[0].r),rev+1);
+ assert.equal(Number((await q('select count(*) as n from temple_private.photo_gallery_changes where publication_id=$1',[p.request])).rows[0].n),1);
+});
+test('concurrent caption updates use compare-and-swap, not last-writer-wins',async()=>{
+ const p=await publishedPhoto(),rev=await galleryRev(),sql='select public.edit_temple_photo_captions($1,$2,$3,$4)';
+ const results=await Promise.allSettled(['A','B'].map(x=>committedAdmin(sql,[p.request,rev,'',x])));
+ assert.equal(results.filter(x=>x.status==='fulfilled').length,1);assert.equal(results.filter(x=>x.status==='rejected'&&/gallery_revision_conflict/.test(x.reason.message)).length,1);
+});
+test('retirement works with both feature switches off and prevents future gateway/metadata reads',async()=>{
+ const p=await publishedPhoto(),rev=await galleryRev(),sql='select public.retire_temple_gallery_photo($1,$2) as r';
+ await assert.rejects(asUser('authenticated',visitorUid,sql,[p.request,rev]),/admin_required/);
+ await assert.rejects(committedAdmin(sql,[p.request,rev-1]),/gallery_revision_conflict/);
+ await exec('update temple_private.photo_publication_config set enabled=false,delivery_enabled=false');
+ assert.equal(Number((await committedAdmin(sql,[p.request,rev])).rows[0].r),rev+1);
+ assert.equal(Number((await committedAdmin(sql,[p.request,rev])).rows[0].r),rev+1);
+ await exec('update temple_private.photo_publication_config set enabled=true,delivery_enabled=true');
+ assert.equal((await publicPhotos()).some(x=>x.publication_id===p.request),false);
+ assert.equal((await q('select public.get_temple_gallery_photo_manifest($1,$2) as r',[p.asset,p.request])).rows[0].r,null);
+ assert.ok((await q('select retired_at from temple_private.photo_gallery_manifest where publication_id=$1',[p.request])).rows[0].retired_at);
+ assert.equal(Number((await q('select count(*) as n from temple_private.photo_gallery_changes where publication_id=$1 and action=\'retire\'',[p.request])).rows[0].n),1);
+ await assert.rejects(committedAdmin('select public.edit_temple_photo_captions($1,$2,$3,$4)',[p.request,rev+1,'','x']),/published_photo_missing/);
+ // No object delete or quota reopening occurs on retirement.
+ assert.equal(Number((await q("select count(*) as n from storage.objects where bucket_id='temple-photo-gallery' and name like $1",[`${p.asset}/%`])).rows[0].n),1);
 });
