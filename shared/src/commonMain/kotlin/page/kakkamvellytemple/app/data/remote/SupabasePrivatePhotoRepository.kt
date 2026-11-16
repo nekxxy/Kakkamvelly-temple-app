@@ -133,7 +133,7 @@ class SupabasePrivatePhotoRepository(
         }
         checkStatus(response.status)
         val receipt: PublicationReceipt = response.body()
-        check(receipt.id == requestId && receipt.state in listOf("queued", "canceled"))
+        check(receipt.id == requestId && receipt.state in listOf("queued", "canceled", "published"))
         receipt
     }
     /** Cancellation remains available if new publication requests are disabled.
