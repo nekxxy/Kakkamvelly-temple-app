@@ -107,6 +107,7 @@ fun GalleryScreen(onOpenUrl: (String) -> Unit = {}, isEn: Boolean = false) {
                     NetworkImage(
                         url = "https://img.youtube.com/vi/${StaticData.YOUTUBE_VIDEO_ID}/mqdefault.jpg",
                         contentDescription = null,
+                        cacheEnabled = photo.assetId == null && photo.publicationId == null,
                         modifier = Modifier.size(width = 100.dp, height = 56.dp)
                             .clip(RoundedCornerShape(8.dp))
                     )
@@ -144,6 +145,7 @@ fun GalleryScreen(onOpenUrl: (String) -> Unit = {}, isEn: Boolean = false) {
                     NetworkImage(
                         url = page.kakkamvellytemple.app.data.model.galleryImageUrl(photo) ?: "",
                         contentDescription = null,
+                        cacheEnabled = photo.assetId == null && photo.publicationId == null,
                         modifier = Modifier
                             .aspectRatio(1f)
                             .clip(RoundedCornerShape(6.dp))
@@ -165,6 +167,7 @@ fun GalleryScreen(onOpenUrl: (String) -> Unit = {}, isEn: Boolean = false) {
                 NetworkImage(
                     url = page.kakkamvellytemple.app.data.model.galleryImageUrl(photo) ?: "",
                     contentDescription = null,
+                        cacheEnabled = photo.assetId == null && photo.publicationId == null,
                     modifier = Modifier.fillMaxWidth().aspectRatio(4f / 3f)
                         .clip(RoundedCornerShape(8.dp))
                 )
