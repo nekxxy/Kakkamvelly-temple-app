@@ -14,7 +14,9 @@ export function supabasePhotoAdapters({url,serviceKey,fetchImpl=fetch}){
  }
  async function rpc(name,body){const r=await call(`${url}/rest/v1/rpc/${name}`,{body:JSON.stringify(body),extra:{'Content-Type':'application/json'}});return r.status===204?null:r.json();}
  return {
-  assets:{pending:id=>rpc('get_pending_temple_photo',{p_id:id}),finish:(id,path)=>rpc('finish_temple_photo_processing',{p_id:id,p_normalized_path:path})},
+  assets:{pending:id=>rpc('get_pending_temple_photo',{p_id:id}),finish:(id,path)=>rpc('finish_temple_photo_processing',{p_id:id,p_normalized_path:path}),
+   cleanupBatch:()=>rpc('private_photo_cleanup_batch',{}),
+   confirmErased:id=>rpc('confirm_private_photo_original_erased',{p_id:id})},
   storage:{
    async downloadBounded(b,p,max){
     if(!Number.isSafeInteger(max)||max<=0||max>8388608)throw Error('Invalid size limit');
