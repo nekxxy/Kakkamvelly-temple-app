@@ -1,10 +1,10 @@
-import { normalizePhoto } from './photo-normalize.mjs';
+import { normalizeInSubprocess } from './photo-isolation.mjs';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 /** Server-only worker operation. Adapters may only use fixed Supabase origin
  * and service credentials. Run decoder in an isolated restricted process.
  * There is no default network adapter, listener, deployment or upload enable.
  * Never accepts an object path or URL from the upload caller. */
-export async function processPhoto({enabled=false,id,assets,storage,normalize=normalizePhoto}={}){
+export async function processPhoto({enabled=false,id,assets,storage,normalize=normalizeInSubprocess}={}){
  if(!enabled)return{status:'disabled'};
  if(!UUID.test(id??'')||!assets||!storage)return{status:'invalid'};
  let slot;
