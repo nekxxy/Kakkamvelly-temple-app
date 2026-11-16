@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 import pg from 'pg';
+import { randomUUID } from 'node:crypto';
 const real = !!process.env.TEST_DATABASE_URL;
 const db = real ? new pg.Pool({connectionString:process.env.TEST_DATABASE_URL,max:20}) : new PGlite();
 const q = async (s,p=[]) => db.query(s,p);
@@ -16,7 +17,7 @@ grant usage on schema auth to authenticated,anon,service_role;
 grant execute on function auth.uid() to authenticated,anon,service_role;
 create table public.admin_users(user_id uuid primary key);
 create function public.is_admin() returns boolean language sql security definer set search_path='' as $$ select exists(select 1 from public.admin_users where user_id=auth.uid()) $$;
-create table public.content_meta(section text primary key,revision bigint not null default 0);
+create table public.content_meta(section text primary key,revision bigint not null default 0,verified boolean not null default true,verified_at timestamptz,verified_by uuid);
 insert into public.content_meta(section) values('gallery');
 create schema storage;
 create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
@@ -27,7 +28,7 @@ grant select,insert,update,delete on storage.objects to authenticated,anon;
 insert into auth.users values('00000000-0000-0000-0000-000000000001'),('00000000-0000-0000-0000-000000000002');
 insert into public.admin_users values('00000000-0000-0000-0000-000000000001');
 `);
-for (const file of ['0006_visitor_dispatch_budget.sql','0007_private_photo_slots.sql','0008_private_photo_cleanup.sql','0009_private_photo_worker_lease.sql','0010_photo_publication_intent.sql']) await exec(await readFile(new URL('../../supabase/migrations/'+file,import.meta.url),'utf8'));
+for (const file of ['0006_visitor_dispatch_budget.sql','0007_private_photo_slots.sql','0008_private_photo_cleanup.sql','0009_private_photo_worker_lease.sql','0010_photo_publication_intent.sql','0011_photo_publication_manifest.sql']) await exec(await readFile(new URL('../../supabase/migrations/'+file,import.meta.url),'utf8'));
 const recipient='a'.repeat(64); let seq=0;
 const key=()=> (++seq).toString(16).padStart(64,'0');
 const reserve=async (k=key(),r=recipient)=>(await q('select public.reserve_visitor_otp($1,$2) as value',[k,r])).rows[0].value;
@@ -192,4 +193,71 @@ test('cancellation is idempotent, works while disabled, and retry never resurrec
  await exec('update temple_private.photo_publication_config set enabled=true');
  assert.equal((await committedAdmin(queueSQL,[publicationRequest,publicationAsset,0,'മലയാളം','English'])).rows[0].r.state,'canceled');
  await assert.rejects(asUser('authenticated',adminUid,queueSQL,['00000000-0000-0000-0000-000000000033',publicationAsset,0,'a'.repeat(2001),'English']),/invalid_publication_request/);
+});
+
+async function queuedPhoto(){
+ const asset=randomUUID(),request=randomUUID(),source=`processed/${asset}.jpg`;
+ const revision=Number((await q("select revision from public.content_meta where section='gallery'")).rows[0].revision);
+ await q("insert into temple_private.photo_assets(id,created_by,original_path,state,normalized_path,reviewed_by,reviewed_at) values($1,$2,$3,'reviewed',$4,$2,clock_timestamp())",[asset,adminUid,`${adminUid}/${asset}/original`,source]);
+ await q("insert into storage.objects(bucket_id,name) values('temple-photo-quarantine',$1)",[source]);
+ await committedAdmin(queueSQL,[request,asset,revision,'മലയാളം','An exact caption']);return {asset,request,revision};
+}
+const publicationClaim=async id=>(await q('select public.claim_temple_photo_publication($1) as r',[id])).rows[0].r;
+const stageTarget=async claim=>q("insert into storage.objects(bucket_id,name) values('temple-photo-gallery',$1)",[claim.target_path]);
+const publicPhotos=async()=>(await asUser('anon','','select public.get_uploaded_temple_gallery() as r')).rows[0].r;
+test('delivery defaults disabled and gallery bucket remains private without direct reads',async()=>{
+ assert.equal(await publicationClaim(publicationRequest),null);assert.deepEqual(await publicPhotos(),[]);
+ assert.equal((await q("select public from storage.buckets where id='temple-photo-gallery'")).rows[0].public,false);
+ for(const role of ['anon','authenticated']){
+  await assert.rejects(asUser(role,adminUid,'select public.claim_temple_photo_publication($1)',[publicationRequest]),/permission denied/);
+  await assert.rejects(asUser(role,adminUid,'select public.get_temple_gallery_photo_manifest($1,$2)',[publicationAsset,publicationRequest]),/permission denied/);
+ }
+});
+test('fenced publication exposes manifest only with atomic revision and verification reset',async()=>{
+ await exec('update temple_private.photo_publication_config set enabled=true,delivery_enabled=true');
+ const p=await queuedPhoto();const claims=await Promise.all(Array.from({length:10},()=>publicationClaim(p.request)));
+ const wins=claims.filter(Boolean);assert.equal(wins.length,1);const claim=wins[0];
+ assert.equal(claim.source_bucket,'temple-photo-quarantine');assert.equal(claim.target_bucket,'temple-photo-gallery');
+ await stageTarget(claim);
+ assert.deepEqual(await publicPhotos(),[]);
+ assert.equal((await q('select public.get_temple_gallery_photo_manifest($1,$2) as r',[p.asset,p.request])).rows[0].r,null);
+ const rev=(await q('select public.finish_temple_photo_publication($1,$2) as r',[p.request,claim.lease_token])).rows[0].r;
+ assert.equal(Number(rev),p.revision+1);assert.equal((await q("select verified from public.content_meta where section='gallery'")).rows[0].verified,false);
+ const photos=await publicPhotos();assert.equal(photos.length,1);assert.equal(photos[0].caption_ml,'മലയാളം');assert.equal(photos[0].asset_id,p.asset);assert.equal(photos[0].path,undefined);
+ const manifest=(await q('select public.get_temple_gallery_photo_manifest($1,$2) as r',[p.asset,p.request])).rows[0].r;assert.equal(manifest.path,claim.target_path);
+ assert.equal((await asUser('anon','','select name from storage.objects where bucket_id=\'temple-photo-gallery\'')).rows.length,0);
+ await assert.rejects(committedAdmin('select public.cancel_temple_photo_publication($1)',[p.request]),/photo_already_published/);
+ await assert.rejects(q('select public.finish_temple_photo_publication($1,$2)',[p.request,claim.lease_token]),/publication_lease_lost/);
+});
+test('canceling claimed publication fences late completion without exposing staged object',async()=>{
+ const p=await queuedPhoto(),claim=await publicationClaim(p.request);await stageTarget(claim);
+ await committedAdmin('select public.cancel_temple_photo_publication($1)',[p.request]);
+ await assert.rejects(q('select public.finish_temple_photo_publication($1,$2)',[p.request,claim.lease_token]),/publication_lease_lost/);
+ assert.equal((await q('select public.get_temple_gallery_photo_manifest($1,$2) as r',[p.asset,p.request])).rows[0].r,null);
+});
+test('expired publication lease cannot finish and retry uses a different immutable target',async()=>{
+ const p=await queuedPhoto(),first=await publicationClaim(p.request);await stageTarget(first);
+ await q("update temple_private.photo_publication_requests set lease_until=clock_timestamp()-interval '1 second' where id=$1",[p.request]);
+ const second=await publicationClaim(p.request);assert.notEqual(second.target_path,first.target_path);await stageTarget(second);
+ await assert.rejects(q('select public.finish_temple_photo_publication($1,$2)',[p.request,first.lease_token]),/publication_lease_lost/);
+ await q('select public.finish_temple_photo_publication($1,$2)',[p.request,second.lease_token]);
+ assert.equal(await publicationClaim(p.request),null);
+});
+test('gallery revision changes while staging reject finalization without partial manifest',async()=>{
+ const p=await queuedPhoto(),claim=await publicationClaim(p.request);await stageTarget(claim);
+ await exec("update public.content_meta set revision=revision+1 where section='gallery'");
+ await assert.rejects(q('select public.finish_temple_photo_publication($1,$2)',[p.request,claim.lease_token]),/gallery_revision_conflict/);
+ assert.equal((await q('select public.get_temple_gallery_photo_manifest($1,$2) as r',[p.asset,p.request])).rows[0].r,null);
+ assert.equal(await publicationClaim(p.request),null);
+});
+test('revoked admin membership prevents finalization even after successful staging',async()=>{
+ const p=await queuedPhoto(),claim=await publicationClaim(p.request);await stageTarget(claim);
+ await q('delete from public.admin_users where user_id=$1',[adminUid]);
+ try{await assert.rejects(q('select public.finish_temple_photo_publication($1,$2)',[p.request,claim.lease_token]),/publication_authority_changed/);}
+ finally{await q('insert into public.admin_users(user_id) values($1)',[adminUid]);}
+});
+test('delivery kill switch hides manifests and metadata, not only new requests',async()=>{
+ assert.ok((await publicPhotos()).length>=1);await exec('update temple_private.photo_publication_config set delivery_enabled=false');
+ assert.deepEqual(await publicPhotos(),[]);
+ assert.equal((await q('select count(*) as n from temple_private.photo_gallery_manifest')).rows[0].n.toString(),'2');
 });
