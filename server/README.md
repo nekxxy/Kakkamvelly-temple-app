@@ -71,3 +71,18 @@ processing derivatives deliberately remain held until a separate worker-lease
 and orphan-reconciliation protocol is implemented; do not reclaim them by age
 alone, which could race an in-flight processor. No cleanup schedule/deployment
 is enabled. Existing reservation history also blocks silent currency changes.
+
+
+Processing fencing (migration0009): each worker must claim a two-minute lease,
+write its derivative at an immutable asset/lease-token path, then complete with
+that token before expiry. Concurrent claims serialize. Late/stale workers cannot
+assert processing or overwrite the next worker's output. Former unfenced finish
+RPC is revoked from service_role. Stale private derivatives remain quarantined
+and counted conservatively until an orphan reconciler exists; never publish or
+reclaim them merely from age. No background runner or deployment is enabled.
+Each asset is limited to two processing claims, bounding generated derivative
+slots rather than leaking storage across endless failed retries. Exhausted assets
+remain held for explicit reconciliation. With the 24asset cap and max8MiB input,
+4MiB output, this reserves at most384MiB of image payload for this workflow,
+excluding other project data, database/storage overhead and retained legacy files.
+These are engineering ceilings, not a claim about the live plan's free allowance.
