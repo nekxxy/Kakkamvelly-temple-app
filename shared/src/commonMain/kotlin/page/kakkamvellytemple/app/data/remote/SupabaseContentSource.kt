@@ -3,6 +3,7 @@ package page.kakkamvellytemple.app.data.remote
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
+import io.ktor.http.*
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.serialization.SerialName
@@ -20,15 +21,15 @@ import kotlinx.serialization.Serializable
  *  nothing is committed to the repo. All access is select-only under public-read RLS. */
 object SupabaseContentSource {
 
-    data class Settings(val url: String, val anonKey: String) {
+    data class Settings(val url: String, val anonKey: String, val uploadedPhotosEnabled: Boolean = false) {
         val isConfigured: Boolean get() = url.isNotBlank() && anonKey.isNotBlank()
     }
 
     var settings: Settings? = null
         private set
 
-    fun configure(url: String, anonKey: String) {
-        settings = Settings(url.trimEnd('/'), anonKey).takeIf { it.isConfigured }
+    fun configure(url: String, anonKey: String, uploadedPhotosEnabled: Boolean = false) {
+        settings = Settings(url.trimEnd('/'), anonKey, uploadedPhotosEnabled).takeIf { it.isConfigured }
     }
 
     @Serializable
@@ -65,6 +66,14 @@ object SupabaseContentSource {
         @SerialName("title_en") val titleEn: String,
         @SerialName("time_ml") val timeMl: String? = null,
         @SerialName("time_en") val timeEn: String? = null,
+    )
+
+    @Serializable
+    private data class UploadedGalleryRow(
+        @SerialName("asset_id") val assetId: String,
+        @SerialName("publication_id") val publicationId: String,
+        @SerialName("caption_ml") val captionMl: String,
+        @SerialName("caption_en") val captionEn: String,
     )
 
     @Serializable
@@ -129,6 +138,17 @@ object SupabaseContentSource {
         val contactRows: List<ContactRow> = getRows(client, s, "contacts?order=sort_order.asc")
         val eventRows: List<EventRow> = getRows(client, s, "events?active=eq.true")
         val galleryRows: List<GalleryRow> = getRows(client, s, "gallery?active=eq.true&order=sort_order.asc")
+        val uploadedRows: List<UploadedGalleryRow> = if (s.uploadedPhotosEnabled) {
+            client.post("${s.url}/rest/v1/rpc/get_uploaded_temple_gallery") {
+                header("apikey", s.anonKey); bearerAuth(s.anonKey)
+                contentType(ContentType.Application.Json); setBody("{}")
+            }.body<List<UploadedGalleryRow>>().also { rows ->
+                val uuid = Regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+                check(rows.size <= 24 && rows.map { it.assetId }.toSet().size == rows.size && rows.all {
+                    uuid.matches(it.assetId) && uuid.matches(it.publicationId) && it.captionMl.length <= 2000 && it.captionEn.length <= 2000
+                })
+            }
+        } else emptyList()
         val vazhipadRows: List<VazhipadRow> = getRows(client, s, "vazhipad?active=eq.true&order=sort_order.asc")
         val festivalRows: List<FestivalRow> = getRows(client, s, "festivals?active=eq.true&order=date_utc_ms.asc")
         val announcementRows: List<AnnouncementRow> = getRows(client, s, "announcements?active=eq.true&order=created_at.desc")
@@ -168,6 +188,7 @@ object SupabaseContentSource {
             gallery = galleryRows.mapNotNull { r ->
                 r.photoPath?.let { GalleryDto(it, r.captionMl ?: "", r.captionEn ?: "") }
             }.ifEmpty { null },
+            uploadedGallery = if (s.uploadedPhotosEnabled) uploadedRows.map { UploadedGalleryDto(it.assetId,it.publicationId,it.captionMl,it.captionEn) } else null,
             darshan = darshanRow?.let {
                 DarshanDto(it.morningOpenMin, it.morningCloseMin, it.eveningOpenMin, it.eveningCloseMin)
             },
