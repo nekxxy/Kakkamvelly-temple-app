@@ -8,10 +8,11 @@ export async function processPhoto({enabled=false,id,assets,storage,normalize=no
  if(!enabled)return{status:'disabled'};
  if(!UUID.test(id??'')||!assets||!storage)return{status:'invalid'};
  let slot;
- try{slot=await assets.pending(id);}catch{return{status:'unavailable'};}
+ try{slot=await assets.claim(id);}catch{return{status:'unavailable'};}
  const expected=new RegExp(`^[0-9a-f-]{36}/${id}/original$`);
- if(slot?.id!==id||slot.bucket!=='temple-photo-quarantine'||!expected.test(slot.path??''))return{status:'not_pending'};
- const outputPath=`processed/${id}.jpg`;
+ if(slot?.id!==id||slot.bucket!=='temple-photo-quarantine'||!expected.test(slot.path??'')||
+   !UUID.test(slot.lease_token??'')||slot.output_path!==`processed/${id}/${slot.lease_token}.jpg`)return{status:'not_pending'};
+ const outputPath=slot.output_path;
  let input,output;
  try{
   // Adapter must enforce byte/time caps during download, not after buffering.
@@ -19,7 +20,7 @@ export async function processPhoto({enabled=false,id,assets,storage,normalize=no
   output=await normalize(input);
   // insert-only: immutable output. Never overwrite on retry/race.
   await storage.insert(slot.bucket,outputPath,output,'image/jpeg');
-  await assets.finish(id,outputPath);
+  await assets.finish(id,slot.lease_token);
  }catch{return{status:'processing_unconfirmed'};}
  finally{if(Buffer.isBuffer(input))input.fill(0);if(Buffer.isBuffer(output))output.fill(0);}
  // Private original deletion is separate. Failure does not roll back processed
@@ -45,4 +46,4 @@ export async function cleanupPhotoOriginals({enabled=false,assets,storage}={}){
   catch{pending++;} // No claim of erasure while storage or verification failed.
  }
  return{status:pending?'cleanup_pending':'complete',confirmed,pending};
-                                                                           }
+}
