@@ -15,9 +15,10 @@ class SupabaseVisitorSessionRevoker(
             header("apikey", settings.anonKey)
             bearerAuth(accessToken)
         }
-        // Supabase clients treat nonexistent/expired sessions as already out.
-        if (!response.status.isSuccess() && response.status.value !in listOf(401, 403, 404)) {
-            throw Exception("Signed out on this device; server logout could not be confirmed")
+        // An expired access JWT does not prove its refresh token was revoked.
+        // Treat every non-success response as unconfirmed server logout.
+        if (!response.status.isSuccess()) {
+            throw Exception("Server logout could not be confirmed")
         }
     }
 }
