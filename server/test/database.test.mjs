@@ -25,7 +25,7 @@ grant select,insert,update,delete on storage.objects to authenticated,anon;
 insert into auth.users values('00000000-0000-0000-0000-000000000001'),('00000000-0000-0000-0000-000000000002');
 insert into public.admin_users values('00000000-0000-0000-0000-000000000001');
 `);
-for (const file of ['0006_visitor_dispatch_budget.sql','0007_private_photo_slots.sql','0008_private_photo_cleanup.sql']) await exec(await readFile(new URL('../../supabase/migrations/'+file,import.meta.url),'utf8'));
+for (const file of ['0006_visitor_dispatch_budget.sql','0007_private_photo_slots.sql','0008_private_photo_cleanup.sql','0009_private_photo_worker_lease.sql']) await exec(await readFile(new URL('../../supabase/migrations/'+file,import.meta.url),'utf8'));
 const recipient='a'.repeat(64); let seq=0;
 const key=()=> (++seq).toString(16).padStart(64,'0');
 const reserve=async (k=key(),r=recipient)=>(await q('select public.reserve_visitor_otp($1,$2) as value',[k,r])).rows[0].value;
@@ -130,4 +130,21 @@ test('currency cannot silently change with active reservation history',async()=>
  await reset();assert.equal((await reserve()).status,'reserved');
  await exec("update temple_private.otp_config set currency='USD'");
  assert.equal((await reserve()).status,'configuration_required');
+});
+
+test('processing leases fence concurrent workers and late assertions',async()=>{
+ await exec("truncate temple_private.photo_assets; update temple_private.photo_config set enabled=true");
+ const id='00000000-0000-0000-0000-000000000066';const uid='00000000-0000-0000-0000-000000000001';
+ await q("insert into temple_private.photo_assets(id,created_by,original_path) values($1,$2,$3)",[id,uid,`${uid}/${id}/original`]);
+ const claims=await Promise.all(Array.from({length:10},()=>q('select public.claim_private_temple_photo($1) as c',[id])));
+ const wins=claims.map(x=>x.rows[0].c).filter(Boolean);assert.equal(wins.length,1);const c=wins[0];
+ await q("insert into storage.objects(bucket_id,name) values('temple-photo-quarantine',$1)",[c.output_path]);
+ await q("update temple_private.photo_assets set processing_until=clock_timestamp()-interval '1 second' where id=$1",[id]);
+ await assert.rejects(q('select public.finish_leased_temple_photo($1,$2)',[id,c.lease_token]),/processing_lease_lost/);
+ const next=(await q('select public.claim_private_temple_photo($1) as c',[id])).rows[0].c;assert.notEqual(next.lease_token,c.lease_token);
+ await assert.rejects(q('select public.finish_leased_temple_photo($1,$2)',[id,c.lease_token]),/processing_lease_lost/);
+ await q("insert into storage.objects(bucket_id,name) values('temple-photo-quarantine',$1)",[next.output_path]);
+ await q('select public.finish_leased_temple_photo($1,$2)',[id,next.lease_token]);
+ assert.equal((await q('select normalized_path from temple_private.photo_assets where id=$1',[id])).rows[0].normalized_path,next.output_path);
+ await assert.rejects(asUser('service_role','','select public.finish_temple_photo_processing($1,$2)',[id,`processed/${id}.jpg`]),/permission denied/);
 });
