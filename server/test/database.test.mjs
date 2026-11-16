@@ -123,7 +123,7 @@ test('original cleanup requires processed asset and confirmed storage absence',a
  await q("delete from storage.objects where bucket_id='temple-photo-quarantine' and name=$1",[path]);
  await q('select public.confirm_private_photo_original_erased($1)',[id]);
  assert.ok((await q('select original_erased_at from temple_private.photo_assets where id=$1',[id])).rows[0].original_erased_at);
- assert.equal((await q('select count(*) as n from temple_private.photo_assets where id=$1',[id])).rows[0].n,1);
+ assert.equal(Number((await q('select count(*) as n from temple_private.photo_assets where id=$1',[id])).rows[0].n),1);
 });
 
 test('currency cannot silently change with active reservation history',async()=>{
