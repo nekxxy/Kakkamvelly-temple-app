@@ -15,10 +15,6 @@ create schema auth; create table auth.users(id uuid primary key);
 create function auth.uid() returns uuid language sql as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
 grant usage on schema auth to authenticated,anon,service_role;
 grant execute on function auth.uid() to authenticated,anon,service_role;
-create table public.admin_users(user_id uuid primary key);
-create function public.is_admin() returns boolean language sql security definer set search_path='' as $$ select exists(select 1 from public.admin_users where user_id=auth.uid()) $$;
-create table public.content_meta(section text primary key,revision bigint not null default 0,verified boolean not null default true,verified_at timestamptz,verified_by uuid);
-insert into public.content_meta(section) values('gallery');
 create schema storage;
 create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
 create table storage.objects(id uuid default gen_random_uuid(),bucket_id text,name text,unique(bucket_id,name));
@@ -26,9 +22,14 @@ alter table storage.objects enable row level security;
 grant usage on schema storage to authenticated,anon,service_role;
 grant select,insert,update,delete on storage.objects to authenticated,anon;
 insert into auth.users values('00000000-0000-0000-0000-000000000001'),('00000000-0000-0000-0000-000000000002');
-insert into public.admin_users values('00000000-0000-0000-0000-000000000001');
 `);
-for (const file of ['0006_visitor_dispatch_budget.sql','0007_private_photo_slots.sql','0008_private_photo_cleanup.sql','0009_private_photo_worker_lease.sql','0010_photo_publication_intent.sql','0011_photo_publication_manifest.sql','0012_photo_retirement_captions.sql','0013_gallery_delivery_budget.sql','0014_photo_management_snapshot.sql','0015_expired_upload_tombstones.sql']) await exec(await readFile(new URL('../../supabase/migrations/'+file,import.meta.url),'utf8'));
+for (const file of ['0001_schema_public_read.sql','0002_admin_default_deny.sql','0003_vazhipad_festivals.sql','0004_admin_publish_rpc.sql','0005_gallery_validation.sql','0006_visitor_dispatch_budget.sql','0007_private_photo_slots.sql','0008_private_photo_cleanup.sql','0009_private_photo_worker_lease.sql','0010_photo_publication_intent.sql','0011_photo_publication_manifest.sql','0012_photo_retirement_captions.sql','0013_gallery_delivery_budget.sql','0014_photo_management_snapshot.sql','0015_expired_upload_tombstones.sql']) await exec(await readFile(new URL('../../supabase/migrations/'+file,import.meta.url),'utf8'));
+// Hosted Supabase supplies table privileges separately from migrations. Model
+// those privileges explicitly; real policy functions and every migration are
+// loaded above, not replaced with a permissive authorization mock.
+await exec(`grant select,insert,update,delete on public.admin_users,public.content_meta,public.gallery to authenticated,anon;
+grant usage,select on all sequences in schema public to authenticated,anon;
+insert into public.admin_users(user_id) values('00000000-0000-0000-0000-000000000001');`);
 const recipient='a'.repeat(64); let seq=0;
 const key=()=> (++seq).toString(16).padStart(64,'0');
 const reserve=async (k=key(),r=recipient)=>(await q('select public.reserve_visitor_otp($1,$2) as value',[k,r])).rows[0].value;
@@ -362,4 +363,27 @@ test('expired pending reconciliation tombstones only old inactive slots, retaini
  await q("insert into storage.objects(bucket_id,name) values('temple-photo-quarantine',$1)",[path]);
  await assert.rejects(q('select public.confirm_abandoned_temple_photo_absent($1)',[old]),/original_still_exists/);
  await assert.rejects(q('select public.confirm_abandoned_temple_photo_absent($1)',[fresh]),/photo_not_abandoned/);
+});
+
+test('complete migration chain uses real membership policies and denies visitor self-enrollment',async()=>{
+ assert.equal((await asUser('authenticated',adminUid,'select public.is_admin() as r')).rows[0].r,true);
+ assert.equal((await asUser('authenticated',visitorUid,'select public.is_admin() as r')).rows[0].r,false);
+ await assert.rejects(asUser('authenticated',visitorUid,'insert into public.admin_users(user_id) values($1)',[visitorUid]),/row-level security/);
+ await assert.rejects(asUser('anon','','insert into public.admin_users(user_id) values($1)',[visitorUid]),/row-level security/);
+ await assert.rejects(asUser('authenticated',visitorUid,'select public.publish_gallery($1::jsonb,$2)',[JSON.stringify([]),await galleryRev()]),/admin_required/);
+});
+test('legacy gallery and uploaded manifest coexist without mutating legacy URLs; invalid legacy publish rolls back',async()=>{
+ await exec("insert into public.gallery(photo_path,caption_ml,caption_en,sort_order) values('legacy-a','ml','en',0)");
+ const rev=await galleryRev(),before=(await q('select * from public.gallery order by id')).rows;
+ await assert.rejects(committedAdmin('select public.publish_gallery($1::jsonb,$2)',[JSON.stringify([{photo_path:'../invalid',caption_ml:'',caption_en:''}]),rev]),/invalid_photo_path/);
+ assert.deepEqual((await q('select * from public.gallery order by id')).rows,before);assert.equal(await galleryRev(),rev);
+ await exec('update temple_private.photo_publication_config set enabled=true,delivery_enabled=true');
+ const p=await queuedPhoto(),claim=await publicationClaim(p.request);await stageTarget(claim);await q('select public.finish_temple_photo_publication($1,$2)',[p.request,claim.lease_token]);
+ assert.deepEqual((await q('select * from public.gallery order by id')).rows,before);
+ assert.ok((await publicPhotos()).some(x=>x.asset_id===p.asset));
+ // A legacy admin publish does not silently remove the separately reviewed manifest.
+ await committedAdmin('select public.publish_gallery($1::jsonb,$2)',[JSON.stringify([{photo_path:'legacy-b',caption_ml:'ml2',caption_en:'en2'}]),await galleryRev()]);
+ assert.equal((await q('select photo_path from public.gallery')).rows[0].photo_path,'legacy-b');
+ assert.ok((await publicPhotos()).some(x=>x.asset_id===p.asset));
+ assert.equal((await q("select verified from public.content_meta where section='gallery'")).rows[0].verified,false);
 });
