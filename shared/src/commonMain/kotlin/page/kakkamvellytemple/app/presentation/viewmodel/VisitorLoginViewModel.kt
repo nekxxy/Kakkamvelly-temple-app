@@ -45,7 +45,7 @@ class VisitorLoginViewModel(
         scope.launch {
             try { auth.signOut(); code = ""; phone = ""; error = null }
             catch (e: CancellationException) { throw e }
-            catch (_: Exception) { error = "Signed out here; server logout could not be confirmed." }
+            catch (_: Exception) { error = "Sign-out could not be fully confirmed. Avoid using this app on a shared device." }
             finally { busy = false }
         }
     }
