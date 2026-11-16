@@ -104,3 +104,21 @@ no network and a minimal read-only filesystem remains an activation prerequisite
 There is no deployment manifest claiming to provide those restrictions here.
 The service key stays in the parent, which only passes the raster bytes over
 stdin. No uploads, migrations or public serving are enabled by this change.
+
+### Private publication intent queue (0010, unapplied)
+
+A separate default-disabled config governs `queue_reviewed_temple_photo`; enabling
+private uploads does not enable publication requests. An admin can queue exact
+captions, a reviewed asset and the current gallery revision with a caller-saved
+request UUID. The RPC checks normalized-object presence. Identical retries return
+the same intent; a changed payload with that UUID fails. Concurrent retries write
+one row. At most 24 queued intents are accepted. Cancellation is idempotent and
+works while new requests are disabled. Retrying a canceled UUID never restores it.
+
+This stage is a private outbox only, not publication. It has no worker claim,
+public bucket, visitor read policy, gallery mutation, revision increment or
+verification change. The Kotlin repository has queue/cancel methods with an
+independent default-off queue flag, but no production caller or UI entry point.
+A future worker/finalizer must re-check membership, asset review and current
+revision, honor cancellation and safely stage/confirm immutable derivatives
+before a gallery manifest can change. Legacy visitor URLs remain untouched.
