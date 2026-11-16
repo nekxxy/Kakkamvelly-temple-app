@@ -6,7 +6,8 @@ import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.*
+import io.ktor.http.content.TextContent
 import kotlin.test.*
 import page.kakkamvellytemple.app.data.remote.*
 import page.kakkamvellytemple.app.data.repository.*
@@ -69,5 +70,33 @@ class PrivatePhotoRepositoryTest {
                 HttpStatusCode.OK,headersOf(HttpHeaders.ContentType,"application/json"))
         }) { install(ContentNegotiation) { json(Json { ignoreUnknownKeys=true }) } }
         assertTrue(SupabasePrivatePhotoRepository(settings,{"admin-token"},c,true).listPrivate().isFailure)
+    }
+    @Test fun publicationIntentHasIndependentDefaultOffGate(): Unit = runBlocking {
+        var calls=0; val c=HttpClient(MockEngine { calls++; error("no request") })
+        val r=SupabasePrivatePhotoRepository(settings,{"admin-token"},c,true)
+        assertIs<NotApprovedException>(r.queuePublicationIntent(id,id,0,"ml","en").exceptionOrNull())
+        assertEquals(0,calls)
+    }
+    @Test fun publicationIntentPreservesExactCaptionsAndRequestId(): Unit = runBlocking {
+        var calls=0
+        val c=HttpClient(MockEngine { req ->
+            calls++; assertEquals("/rest/v1/rpc/queue_reviewed_temple_photo",req.url.encodedPath)
+            assertEquals("Bearer admin-token",req.headers[HttpHeaders.Authorization])
+            val body=Json.parseToJsonElement((req.body as TextContent).text).jsonObject
+            assertEquals(id,body["p_request_id"]!!.jsonPrimitive.content)
+            assertEquals("മലയാളം",body["p_caption_ml"]!!.jsonPrimitive.content)
+            assertEquals("An exact caption",body["p_caption_en"]!!.jsonPrimitive.content)
+            respond("""{"id":"$id","state":"queued"}""",HttpStatusCode.OK,headersOf(HttpHeaders.ContentType,"application/json"))
+        }) { install(ContentNegotiation) { json() } }
+        val r=SupabasePrivatePhotoRepository(settings,{"admin-token"},c,true,true)
+        assertEquals("queued",r.queuePublicationIntent(id,id,0,"മലയാളം","An exact caption").getOrThrow().state)
+        assertEquals(1,calls)
+    }
+    @Test fun cancellationWorksWithNewPublicationRequestsDisabled(): Unit = runBlocking {
+        val c=HttpClient(MockEngine { req ->
+            assertEquals("/rest/v1/rpc/cancel_temple_photo_publication",req.url.encodedPath)
+            respond("""{"id":"$id","state":"canceled"}""",HttpStatusCode.OK,headersOf(HttpHeaders.ContentType,"application/json"))
+        }) { install(ContentNegotiation) { json() } }
+        assertEquals("canceled",SupabasePrivatePhotoRepository(settings,{"admin-token"},c,true).cancelPublicationIntent(id).getOrThrow().state)
     }
 }
