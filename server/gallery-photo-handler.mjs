@@ -7,7 +7,7 @@ const reply=(status,text='')=>new Response(text,{status,headers:{...headers,'Con
  * publication approval, hosting/egress controls and hosted checks are complete.
  * manifest.lookup must read CURRENT published state/config, never a stale cache.
  * storage.downloadBounded must enforce size/time caps while streaming. */
-export function createGalleryPhotoHandler({enabled=false,manifest,storage}={}){
+export function createGalleryPhotoHandler({enabled=false,manifest,storage,budget}={}){
  function valid(x,asset,publication){
   return x?.asset_id===asset && x?.publication_id===publication && x.bucket==='temple-photo-gallery' &&
    new RegExp(`^${asset}/${publication}/${UUID}\\.jpg$`).test(x.path??'');
@@ -17,7 +17,8 @@ export function createGalleryPhotoHandler({enabled=false,manifest,storage}={}){
   let url;try{url=new URL(request.url);}catch{return reply(404);}
   const ids=route.exec(url.pathname);if(!ids||url.search)return reply(404);
   if(!['GET','HEAD'].includes(request.method))return new Response(null,{status:405,headers:{...headers,Allow:'GET, HEAD'}});
-  if(!manifest?.lookup||!storage?.downloadBounded)return reply(503,'Photo unavailable');
+  if(!manifest?.lookup||!storage?.downloadBounded||!budget?.reserve)return reply(503,'Photo unavailable');
+  try{if(await budget.reserve()!==true)return reply(429,'Photo delivery limit reached');}catch{return reply(503,'Photo unavailable');}
   const [,asset,publication]=ids;
   try{
    const row=await manifest.lookup(asset,publication);
@@ -33,4 +34,4 @@ export function createGalleryPhotoHandler({enabled=false,manifest,storage}={}){
    return new Response(bytes,{status:200,headers:{...headers,'Content-Type':'image/jpeg','Content-Length':String(bytes.length)}});
   }catch{return reply(503,'Photo unavailable');}
  };
-   }
+}
