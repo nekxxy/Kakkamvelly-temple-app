@@ -164,3 +164,22 @@ never a remote URL. Empty/disabled manifests remove uploaded references on refre
 legacy packaged fallbacks still keep the unverified notice where appropriate.
 Actual gateway routing, authenticated Storage/RLS and Android/Malayalam pixels
 remain unverified until hosted/device checks are available and approved.
+
+### Retirement and captions (0012, unapplied)
+
+Admins can edit a published caption using the current gallery revision. Each edit
+bumps that revision, clears committee verification and records the actor, exact
+new captions and revision in a private audit row. The original publication request
+is unchanged. Concurrent edits cannot silently overwrite each other. A fixed
+50-edit-per-photo audit ceiling bounds growth; no-op edits at the current revision
+change nothing. New caption edits require new requests to be enabled.
+
+Retirement is monotonic and works with both delivery and new requests disabled.
+It removes the photo from the visitor metadata and current gateway manifest,
+including after the global delivery switch is later enabled again. A repeated
+retirement does not bump revision or create another audit row. Retirement never
+deletes objects or reopens capacity; there is no reactivation RPC. It cannot
+recall bytes someone already downloaded. A gateway read already buffered is
+re-checked before return, but no distributed system can retract a response that
+was already delivered. The Kotlin repository has gated edit/retire methods and
+unit tests, but no production admin UI or live RPC wiring has been enabled.
