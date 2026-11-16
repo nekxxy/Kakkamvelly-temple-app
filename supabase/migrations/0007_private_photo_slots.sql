@@ -32,10 +32,14 @@ begin
   if not public.is_admin() then raise exception 'admin_required' using errcode='42501'; end if;
   perform 1 from temple_private.photo_config where id=true and enabled=true for update;
   if not found then raise exception 'photo_upload_disabled' using errcode='42501'; end if;
-  -- Fixed global pending-slot ceiling bounds outstanding capabilities. Byte
-  -- quotas/cleanup and processed storage quotas must also precede activation.
-  if (select count(*) from temple_private.photo_assets where state='pending')>=24 then
+  -- Fixed total-asset ceiling: at most24 originals8MiB plus derivatives4MiB
+  -- before cleanup. Never erase ledger rows to reopen quota before objects are
+  -- reconciled/deleted. Other project storage needs its own quota assessment.
+  if (select count(*) from temple_private.photo_assets)>=24 then
     raise exception 'photo_slots_full' using errcode='54000';
+  end if;
+  if (select count(*) from temple_private.photo_assets where created_by=auth.uid() and created_at>clock_timestamp()-interval '1 hour')>=5 then
+    raise exception 'photo_recipient_rate_limited' using errcode='54000';
   end if;
   v_path:=auth.uid()::text||'/'||v_id::text||'/original';
   insert into temple_private.photo_assets(id,created_by,original_path) values(v_id,auth.uid(),v_path);
@@ -88,3 +92,24 @@ language sql stable security definer set search_path='' as $$
 $$;
 revoke all on function public.get_pending_temple_photo(uuid) from public,anon,authenticated;
 grant execute on function public.get_pending_temple_photo(uuid) to service_role;
+
+-- Admin list and authenticated derivative preview only, never originals/public.
+create function public.list_private_temple_photos() returns jsonb
+language plpgsql stable security definer set search_path='' as $$
+begin
+  if not public.is_admin() then raise exception 'admin_required' using errcode='42501'; end if;
+  return (select coalesce(jsonb_agg(jsonb_build_object('id',id,'state',state,
+    'created_at',created_at,'expires_at',expires_at,
+    'preview_path',case when state in ('processed','reviewed') then normalized_path else null end)
+    order by created_at desc),'[]'::jsonb) from temple_private.photo_assets);
+end $$;
+create function public.can_preview_temple_photo(p_bucket text,p_name text) returns boolean
+language sql stable security definer set search_path='' as $$
+ select p_bucket='temple-photo-quarantine' and public.is_admin()
+ and exists(select 1 from temple_private.photo_config where id=true and enabled=true)
+ and exists(select 1 from temple_private.photo_assets where normalized_path=p_name and state in ('processed','reviewed'))
+$$;
+create policy "temple admin processed preview" on storage.objects for select to authenticated
+using(public.can_preview_temple_photo(bucket_id,name));
+revoke all on function public.list_private_temple_photos(),public.can_preview_temple_photo(text,text) from public,anon,authenticated;
+grant execute on function public.list_private_temple_photos(),public.can_preview_temple_photo(text,text) to authenticated;
