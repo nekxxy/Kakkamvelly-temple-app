@@ -78,3 +78,13 @@ end $$;
 revoke all on function public.create_photo_upload_slot(),public.can_upload_temple_photo(text,text),public.review_temple_photo(uuid),public.finish_temple_photo_processing(uuid,text) from public,anon,authenticated;
 grant execute on function public.create_photo_upload_slot(),public.can_upload_temple_photo(text,text),public.review_temple_photo(uuid) to authenticated;
 grant execute on function public.finish_temple_photo_processing(uuid,text) to service_role;
+
+create function public.get_pending_temple_photo(p_id uuid) returns jsonb
+language sql stable security definer set search_path='' as $$
+ select jsonb_build_object('id',id,'bucket','temple-photo-quarantine','path',original_path)
+ from temple_private.photo_assets
+ where id=p_id and state='pending' and expires_at>clock_timestamp()
+ and exists(select 1 from temple_private.photo_config where id=true and enabled=true)
+$$;
+revoke all on function public.get_pending_temple_photo(uuid) from public,anon,authenticated;
+grant execute on function public.get_pending_temple_photo(uuid) to service_role;
