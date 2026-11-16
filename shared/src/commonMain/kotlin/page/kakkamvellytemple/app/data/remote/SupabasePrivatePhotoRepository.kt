@@ -22,12 +22,19 @@ class SupabasePrivatePhotoRepository(
     private val tokens: AdminAuthTokenProvider,
     private val client: HttpClient,
     private val enabled: Boolean = false,
+    private val publicationRequestsEnabled: Boolean = false,
 ) {
     @Serializable class UploadSlot(val id: String, val bucket: String, val path: String)
     @Serializable class PrivatePhoto(
         val id: String, val state: String, val created_at: String,
         val expires_at: String, val preview_path: String? = null,
     )
+    @Serializable class PublicationReceipt(val id: String, val state: String)
+    @Serializable private class PublicationRequest(
+        val p_request_id: String, val p_asset_id: String, val p_expected_revision: Long,
+        val p_caption_ml: String, val p_caption_en: String,
+    )
+    @Serializable private class CancelPublicationRequest(val p_request_id: String)
     @Serializable private class ReviewRequest(val p_id: String)
     private val uuid = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
     private fun valid(slot: UploadSlot): Boolean =
@@ -108,5 +115,38 @@ class SupabasePrivatePhotoRepository(
             setBody(Json.encodeToString(ReviewRequest(id)))
         }
         checkStatus(response.status)
+    }
+    /** Queues a private intent only. Reuse requestId with EXACTLY the same
+     * payload after an uncertain response; never invent a replacement retry.
+     * No public gallery, visitor visibility or verification state is changed. */
+    suspend fun queuePublicationIntent(
+        requestId: String, assetId: String, expectedRevision: Long,
+        captionMl: String, captionEn: String,
+    ): Result<PublicationReceipt> = attempt {
+        if (!publicationRequestsEnabled) throw NotApprovedException("Photo publication requests are not enabled")
+        val t = token()
+        require(Regex("^$uuid$").matches(requestId) && Regex("^$uuid$").matches(assetId))
+        require(expectedRevision >= 0 && captionMl.length <= 2000 && captionEn.length <= 2000)
+        val response = client.post("${settings.url}/rest/v1/rpc/queue_reviewed_temple_photo") {
+            headersFor(t); contentType(ContentType.Application.Json)
+            setBody(Json.encodeToString(PublicationRequest(requestId,assetId,expectedRevision,captionMl,captionEn)))
+        }
+        checkStatus(response.status)
+        val receipt: PublicationReceipt = response.body()
+        check(receipt.id == requestId && receipt.state in listOf("queued", "canceled"))
+        receipt
+    }
+    /** Cancellation remains available if new publication requests are disabled.
+     * It cancels an intent, not a published image or a running remote operation. */
+    suspend fun cancelPublicationIntent(requestId: String): Result<PublicationReceipt> = attempt {
+        val t = token(); require(Regex("^$uuid$").matches(requestId))
+        val response = client.post("${settings.url}/rest/v1/rpc/cancel_temple_photo_publication") {
+            headersFor(t); contentType(ContentType.Application.Json)
+            setBody(Json.encodeToString(CancelPublicationRequest(requestId)))
+        }
+        checkStatus(response.status)
+        val receipt: PublicationReceipt = response.body()
+        check(receipt.id == requestId && receipt.state == "canceled")
+        receipt
     }
 }
