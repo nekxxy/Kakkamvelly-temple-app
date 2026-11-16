@@ -30,7 +30,7 @@ class SupabaseAuthRepository(
     private val enabled: Boolean = false,
 ) : AuthRepository, AdminAuthTokenProvider {
 
-    enum class Channel { EMAIL, PHONE }
+    enum class Channel { EMAIL, PHONE, WHATSAPP }
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -40,7 +40,9 @@ class SupabaseAuthRepository(
     private var accessToken: String? = null
     override suspend fun accessToken(): String? = accessToken
 
-    @Serializable private data class OtpRequest(val email: String? = null, val phone: String? = null)
+    @Serializable private data class OtpRequest(
+        val email: String? = null, val phone: String? = null, val channel: String? = null,
+    )
     @Serializable private data class VerifyRequest(
         val type: String, val token: String,
         val email: String? = null, val phone: String? = null,
@@ -60,6 +62,7 @@ class SupabaseAuthRepository(
             val body = when (channel) {
                 Channel.EMAIL -> json.encodeToString(OtpRequest(email = destination))
                 Channel.PHONE -> json.encodeToString(OtpRequest(phone = destination))
+                Channel.WHATSAPP -> json.encodeToString(OtpRequest(phone = destination, channel = "whatsapp"))
             }
             val resp = client.post("${settings.url}/auth/v1/otp") {
                 header("apikey", settings.anonKey)
@@ -78,7 +81,7 @@ class SupabaseAuthRepository(
         return runCatching {
             val body = when (channel) {
                 Channel.EMAIL -> json.encodeToString(VerifyRequest("email", code, email = destination))
-                Channel.PHONE -> json.encodeToString(VerifyRequest("sms", code, phone = destination))
+                Channel.PHONE, Channel.WHATSAPP -> json.encodeToString(VerifyRequest("sms", code, phone = destination))
             }
             val resp = client.post("${settings.url}/auth/v1/verify") {
                 header("apikey", settings.anonKey)
