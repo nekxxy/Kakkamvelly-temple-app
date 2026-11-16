@@ -111,7 +111,7 @@ class AdminViewModel(
     private fun currentAnnouncements(): List<AnnouncementDto> =
         ContentStore.bundle?.announcements ?: emptyList()
 
-    private fun currentGallery() = StaticData.GALLERY_PHOTOS.map {
+    private fun currentGallery() = StaticData.LEGACY_GALLERY_PHOTOS.map {
         GalleryDto(it.resName, it.captionMl, it.captionEn)
     }
 
