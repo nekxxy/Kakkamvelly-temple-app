@@ -43,8 +43,21 @@ fun KVTApp(
     onCall: (String) -> Unit = {},
     onWhatsApp: (String) -> Unit = {},
     onOpenUrl: (String) -> Unit = {},
-    onUpdate: () -> Unit = {}
+    onUpdate: () -> Unit = {},
+    visitorLogin: VisitorLoginViewModel? = null,
+    requireVisitorLogin: Boolean = false,
 ) {
+    if (requireVisitorLogin) {
+        KakkamvellyTempleTheme {
+            if (visitorLogin == null) {
+                Text("Visitor login setup is incomplete. Please try again later.")
+            } else VisitorSessionGate(visitorLogin, requireLogin = true, isEn = false) {
+                KVTApp(onOpenMaps, onCall, onWhatsApp, onOpenUrl, onUpdate,
+                    visitorLogin = visitorLogin, requireVisitorLogin = false)
+            }
+        }
+        return
+    }
     KakkamvellyTempleTheme {
         var isEn by remember { mutableStateOf(false) }
         val homeVM    = remember { HomeViewModel() }
