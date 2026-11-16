@@ -13,6 +13,7 @@ export function supabasePhotoPublicationAdapters({url,serviceKey,fetchImpl=fetch
  async function rpc(name,body){const r=await call(`${url}/rest/v1/rpc/${name}`,{body:JSON.stringify(body),extra:{'Content-Type':'application/json'}});return r.json();}
  return {
   publications:{claim:id=>rpc('claim_temple_photo_publication',{p_id:id}),finish:(id,token)=>rpc('finish_temple_photo_publication',{p_id:id,p_token:token})},
+  budget:{reserve:()=>rpc('reserve_temple_gallery_delivery',{})},
   manifest:{lookup:(asset,id)=>rpc('get_temple_gallery_photo_manifest',{p_asset_id:asset,p_publication_id:id})},
   storage:{
    async downloadBounded(bucket,path,max){
