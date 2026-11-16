@@ -203,3 +203,11 @@ attacker's requests outside this handler are not covered. Enforced edge rate
 limits, service quotas, billing alerts/hard caps where supported, current hosted
 allowances and a verified hosting route remain activation prerequisites. Do not
 interpret the byte ledger as an assurance that a free-tier deployment cannot bill.
+
+Android cache handling: the uploaded-photo gallery passes an explicit no-cache
+policy to Coil for both grid and lightbox reads. Legacy website photos retain
+their existing cache behavior. This is needed because Coil 3 does not respect
+HTTP Cache-Control by default. Memory and disk cache reads/writes are disabled
+for the uploaded route, but an image already displayed or copied cannot be
+recalled by retirement. Compile/unit checks do not prove Android cache/runtime
+behavior; actual-device checks remain an activation prerequisite.
