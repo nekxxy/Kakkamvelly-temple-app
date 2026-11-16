@@ -13,5 +13,6 @@ interface VisitorAuthRepository {
     val deliveryEnabled: Boolean
     suspend fun requestCode(phone: String): Result<Unit>
     suspend fun verifyCode(phone: String, code: String): Result<Unit>
+    suspend fun restoreSession(): Result<Unit> = Result.success(Unit)
     suspend fun signOut()
 }
