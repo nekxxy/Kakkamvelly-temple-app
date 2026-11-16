@@ -59,6 +59,27 @@ class VisitorWhatsAppAuthTest {
         assertTrue(r.verifyCode(phone, "bad").isFailure)
         assertEquals(1, bodies.size)
     }
+    @Test fun wrongCodeCanBeRetriedWithoutSendingAnotherMessage(): Unit = runBlocking {
+        var verifies = 0
+        var sends = 0
+        val client = HttpClient(MockEngine { req ->
+            if (req.url.encodedPath.endsWith("/otp")) {
+                sends++; respond("{}", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+            } else {
+                verifies++
+                respond(if (verifies == 1) "{}" else """{"access_token":"mock","user":{"id":"v"}}""",
+                    if (verifies == 1) HttpStatusCode.Forbidden else HttpStatusCode.OK,
+                    headersOf(HttpHeaders.ContentType, "application/json"))
+            }
+        }) { install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
+        val r = VisitorWhatsAppAuth(settings, client, true)
+        r.requestCode(phone)
+        assertTrue(r.verifyCode(phone, "000000").isFailure)
+        assertIs<VisitorAuthState.AwaitingCode>(r.state)
+        assertTrue(r.verifyCode(phone, "123456").isSuccess)
+        assertEquals(1, sends)
+        assertEquals(2, verifies)
+    }
     @Test fun visitorObjectIsNotAnAdminTokenProvider() {
         val r: Any = repo()
         assertFalse(r is AdminAuthTokenProvider)
