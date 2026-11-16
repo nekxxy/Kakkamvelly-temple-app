@@ -22,3 +22,8 @@ keystore.properties
 # The real file and any dummy are never committed or included in archives.
 google-services.json
 backend.properties
+
+# Server dependencies and local credentials
+node_modules/
+.env
+.env.*
