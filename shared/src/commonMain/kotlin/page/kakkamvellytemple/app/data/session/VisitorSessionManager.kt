@@ -20,6 +20,13 @@ class VisitorSession(
     override fun toString() = "VisitorSession(redacted)"
 }
 
+class MemoryVisitorSessionStore : VisitorSessionStore {
+    private var value: VisitorSession? = null
+    override suspend fun load() = value
+    override suspend fun save(session: VisitorSession) { value = session }
+    override suspend fun clear() { value = null }
+}
+
 interface VisitorSessionStore {
     suspend fun load(): VisitorSession?
     suspend fun save(session: VisitorSession)
@@ -32,7 +39,11 @@ fun interface VisitorSessionRefresher {
     suspend fun refresh(refreshToken: String): VisitorSession
 }
 
-/** Prepared session lifecycle, NOT connected to production login/navigation yet.
+fun interface VisitorSessionRevoker {
+    suspend fun revoke(accessToken: String)
+}
+
+/** Visitor session lifecycle. Production rollout remains disabled.
  * All operations share one mutex, including storage and rotation: concurrent
  * callers cannot redeem the same rotating refresh token, and a sign-out cannot
  * be undone by an in-flight refresh. Never return an expired access token.
@@ -41,6 +52,7 @@ class VisitorSessionManager(
     private val store: VisitorSessionStore,
     private val refresher: VisitorSessionRefresher,
     private val nowSeconds: () -> Long,
+    private val revoker: VisitorSessionRevoker? = null,
 ) {
     private val mutex = Mutex()
     private var loaded = false
@@ -80,8 +92,21 @@ class VisitorSessionManager(
         // reinterpret "offline" as "signed out".
     }
 
-    /** Local device only. Production logout must additionally revoke the server
-     * session via the auth endpoint, with failure surfaced, before rollout. */
+    /** Clear this device first, then explicitly revoke only this session. A
+     * network error is returned, never presented as confirmed server logout.
+     * Existing short-lived access JWTs can remain valid until expiry. */
+    suspend fun signOut() = mutex.withLock {
+        if (!loaded) { current = store.load(); loaded = true }
+        val old = current
+        current = null
+        store.clear()
+        if (old != null) {
+            val remote = revoker ?: error("Server logout is not configured")
+            remote.revoke(old.accessToken)
+        }
+    }
+
+    /** Local cleanup only, not a confirmed server revocation. */
     suspend fun clearLocalSession() = mutex.withLock {
         current = null
         loaded = true
