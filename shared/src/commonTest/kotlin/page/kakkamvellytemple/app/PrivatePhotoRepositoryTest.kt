@@ -99,4 +99,23 @@ class PrivatePhotoRepositoryTest {
         }) { install(ContentNegotiation) { json() } }
         assertEquals("canceled",SupabasePrivatePhotoRepository(settings,{"admin-token"},c,true).cancelPublicationIntent(id).getOrThrow().state)
     }
+    @Test fun publishedCaptionEditUsesExactWordsAndRevision(): Unit = runBlocking {
+        var calls=0
+        val c=HttpClient(MockEngine { req ->
+            calls++; assertEquals("/rest/v1/rpc/edit_temple_photo_captions",req.url.encodedPath)
+            val body=Json.parseToJsonElement((req.body as TextContent).text).jsonObject
+            assertEquals(4L,body["p_expected_revision"]!!.jsonPrimitive.long)
+            assertEquals("Exact words",body["p_caption_en"]!!.jsonPrimitive.content)
+            respond("5",HttpStatusCode.OK,headersOf(HttpHeaders.ContentType,"application/json"))
+        }) { install(ContentNegotiation) { json() } }
+        val r=SupabasePrivatePhotoRepository(settings,{"admin-token"},c,true,true)
+        assertEquals(5L,r.editPublishedCaptions(id,4,"മലയാളം","Exact words").getOrThrow());assertEquals(1,calls)
+    }
+    @Test fun retirementDoesNotRequireNewPublicationRequestsEnabled(): Unit = runBlocking {
+        val c=HttpClient(MockEngine { req ->
+            assertEquals("/rest/v1/rpc/retire_temple_gallery_photo",req.url.encodedPath)
+            respond("5",HttpStatusCode.OK,headersOf(HttpHeaders.ContentType,"application/json"))
+        }) { install(ContentNegotiation) { json() } }
+        assertEquals(5L,SupabasePrivatePhotoRepository(settings,{"admin-token"},c,true).retirePublishedPhoto(id,4).getOrThrow())
+    }
 }
