@@ -19,10 +19,14 @@ class VisitorWhatsAppAuthTest {
     private val bodies = mutableListOf<JsonObject>()
     private fun repo(enabled: Boolean = false): VisitorWhatsAppAuth {
         val client = HttpClient(MockEngine { req ->
+            if (req.url.encodedPath.endsWith("/logout")) {
+                assertEquals("local", req.url.parameters["scope"])
+                return@MockEngine respond("", HttpStatusCode.NoContent)
+            }
             val raw = (req.body as OutgoingContent.ByteArrayContent).bytes().decodeToString()
             bodies += Json.parseToJsonElement(raw).jsonObject
             respond(if (req.url.encodedPath.endsWith("/verify"))
-                """{"access_token":"mock-token","user":{"id":"visitor-1"}}""" else "{}",
+                """{"access_token":"mock-token","refresh_token":"mock-refresh","expires_in":3600,"user":{"id":"visitor-1"}}""" else "{}",
                 HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
         }) { install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
         return VisitorWhatsAppAuth(settings, client, enabled)
@@ -67,7 +71,7 @@ class VisitorWhatsAppAuthTest {
                 sends++; respond("{}", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
             } else {
                 verifies++
-                respond(if (verifies == 1) "{}" else """{"access_token":"mock","user":{"id":"v"}}""",
+                respond(if (verifies == 1) "{}" else """{"access_token":"mock","refresh_token":"mock-refresh","expires_in":3600,"user":{"id":"v"}}""",
                     if (verifies == 1) HttpStatusCode.Forbidden else HttpStatusCode.OK,
                     headersOf(HttpHeaders.ContentType, "application/json"))
             }
