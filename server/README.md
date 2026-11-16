@@ -35,23 +35,27 @@ CAPTCHA are additional requirements, not a monetary cap. Direct public /otp
 must remain protected. The app CAPTCHA challenge/token path is not yet wired.
 
 Photo slots: authenticated admin membership and disabled config are checked in
-SQL, with path-bound private original insert and no client read/update/delete
-policy. Originals remain private. Service-only normalization completion checks
+SQL, with path-bound private original insert and no client original-read/update/delete
+policy. Processed derivatives have an authenticated admin-only preview SELECT
+policy; visitors and anonymous callers cannot preview. Originals remain private. Service-only normalization completion checks
 object presence, but the worker must actually call normalizePhoto and store its
 output before asserting completion. Client callers cannot mark a file
 processed. Review is attributed to an admin and is NOT publication. No preview
-capability or publication/data-renderer change has been enabled yet.
+capability or publication/data-renderer change has been enabled in the app yet.
 
 Before activation: inspect all existing storage RLS policies for broad OR grants,
-verify on hosted Storage and actual admin/visitor JWTs, add upload byte/account
-quotas and cleanup, and run image decoding in a patched isolated worker with
+verify on hosted Storage and actual admin/visitor JWTs, verify total-asset24 cap and per-admin5/hour issuance limit,
+add project-wide byte accounting and cleanup/reconciliation, and run image decoding in a patched isolated worker with
 CPU/memory/time/filesystem/network limits. Sharp limits pixels, size and formats,
 rotates orientation and removes metadata; re-encoding is risk reduction, not a
 proof that an image is harmless. The library function alone is not an OS
 sandbox. Do not expose it as an unrestricted request handler.
 
-Remaining app work: picker/preview/progress/cancel/retry, bilingual errors,
-private preview signing, transactional asset-publication state/outbox,
+Prepared but device-unverified app code now includes picker/private preview,
+busy state, list refresh and private-review UI, with English/Malayalam copy.
+Production navigation does not call it. Authenticated previews use admin JWTs,
+not bearer signed URLs. Remaining app work: progress/cancel/reconciliation retry,
+transactional asset-publication state/outbox,
 publication-aware serving, backwards-compatible asset IDs/renderer, and delayed
 reference-safe deletion. Device UI, encrypted sessions, hosted provider delivery
 and account configuration remain separate verification gates. Green tests do
