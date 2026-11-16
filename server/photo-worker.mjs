@@ -47,3 +47,18 @@ export async function cleanupPhotoOriginals({enabled=false,assets,storage}={}){
  }
  return{status:pending?'cleanup_pending':'complete',confirmed,pending};
 }
+
+/** Repeatable expired-original reconciliation, not permanent erasure. The
+ * server tombstones old pending assets before paths are returned. Already
+ * accepted external uploads may land late, so absence is only at check time.
+ * Retain periodic reconciliation for the life of the tombstone. */
+export async function reconcileExpiredOriginals({enabled=false,assets,storage}={}){
+ if(!enabled)return{status:'disabled',absentAtCheck:0,pending:0};
+ if(!assets?.abandonExpired||!assets?.confirmAbandonedAbsent||!storage?.remove)return{status:'invalid',absentAtCheck:0,pending:0};
+ let rows;try{rows=await assets.abandonExpired();}catch{return{status:'unavailable',absentAtCheck:0,pending:0};}
+ if(!Array.isArray(rows)||rows.length>24||rows.some(x=>!UUID.test(x?.id??'')||x.bucket!=='temple-photo-quarantine'||
+  !(new RegExp(`^[0-9a-f-]{36}/${x.id}/original$`)).test(x.path??'')))return{status:'invalid_batch',absentAtCheck:0,pending:0};
+ let absentAtCheck=0,pending=0;
+ for(const x of rows){try{await storage.remove(x.bucket,x.path);await assets.confirmAbandonedAbsent(x.id);absentAtCheck++;}catch{pending++;}}
+ return{status:pending?'reconciliation_pending':'checked',absentAtCheck,pending};
+}
