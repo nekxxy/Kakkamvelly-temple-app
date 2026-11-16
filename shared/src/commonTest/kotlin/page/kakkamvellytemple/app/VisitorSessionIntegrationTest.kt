@@ -18,10 +18,10 @@ class VisitorSessionIntegrationTest {
     private val phone = "+15555550123"
     private val sessionJson = """{"access_token":"access","refresh_token":"refresh","expires_in":3600,"user":{"id":"visitor"}}"""
     private class Store : VisitorSessionStore {
-        var value: VisitorSession? = null; var failSave = false
+        var value: VisitorSession? = null; var failSave = false; var failClear = false
         override suspend fun load() = value
         override suspend fun save(session: VisitorSession) { if (failSave) error("disk"); value = session }
-        override suspend fun clear() { value = null }
+        override suspend fun clear() { if (failClear) error("disk"); value = null }
     }
     private fun client(handler: MockRequestHandleScope.(io.ktor.client.request.HttpRequestData) -> HttpResponseData) =
         HttpClient(MockEngine(handler)) { install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
@@ -57,6 +57,24 @@ class VisitorSessionIntegrationTest {
         r.restoreSession(); assertIs<VisitorAuthState.SignedIn>(r.state)
         assertTrue(runCatching { r.signOut() }.isFailure)
         assertIs<VisitorAuthState.SignedOut>(r.state); assertNull(disk.value)
+    }
+    @Test fun expiredAccessTokenDoesNotClaimServerRevocation(): Unit = runBlocking {
+        val disk=Store(); disk.value=VisitorSession("access","refresh","visitor",3600)
+        val c=client { respond("expired access token",HttpStatusCode.Unauthorized) }
+        val r=VisitorWhatsAppAuth(settings,c,true,disk,{100})
+        r.restoreSession()
+        assertTrue(runCatching { r.signOut() }.isFailure)
+        assertIs<VisitorAuthState.SignedOut>(r.state); assertNull(disk.value)
+    }
+    @Test fun failedLocalClearNeverClaimsCompletedLogout(): Unit = runBlocking {
+        val disk=Store(); disk.value=VisitorSession("access","refresh","visitor",3600)
+        val c=client { respond("{}",HttpStatusCode.OK) }
+        val r=VisitorWhatsAppAuth(settings,c,true,disk,{100})
+        r.restoreSession(); disk.failClear=true
+        val result=runCatching { r.signOut() }
+        assertTrue(result.isFailure); assertNotNull(disk.value)
+        assertIs<VisitorAuthState.SignedOut>(r.state)
+        assertFalse(result.exceptionOrNull()!!.message!!.startsWith("Signed out"))
     }
     @Test fun disabledRestoreMakesNoNetworkCalls(): Unit = runBlocking {
         var calls=0; val c=client { calls++; error("must not call") }
