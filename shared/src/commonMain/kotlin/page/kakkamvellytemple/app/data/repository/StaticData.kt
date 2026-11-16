@@ -93,11 +93,19 @@ object StaticData {
         GalleryPhoto("temple-side-grounds","ക്ഷേത്ര മൈതാനം","Temple Grounds")
     )
 
-    val GALLERY_PHOTOS: List<GalleryPhoto>
+    val LEGACY_GALLERY_PHOTOS: List<GalleryPhoto>
         get() = remoteOrDefault(
             { b -> b.gallery?.map { GalleryPhoto(it.resName, it.captionMl, it.captionEn) } },
             DEFAULT_GALLERY_PHOTOS
         )
+
+    /** Uploaded entries are additive. Never rewrite legacy slugs or send uploaded
+     * references through the old gallery editor/publish_gallery RPC. */
+    val GALLERY_PHOTOS: List<GalleryPhoto>
+        get() = LEGACY_GALLERY_PHOTOS + if (page.kakkamvellytemple.app.data.remote.SupabaseContentSource.settings?.uploadedPhotosEnabled == true)
+            ContentStore.bundle?.uploadedGallery.orEmpty().take(24).map {
+                GalleryPhoto("", it.captionMl, it.captionEn, it.assetId, it.publicationId)
+            } else emptyList()
 
     // Vazhipad — exact amounts from temple board (Regd. 255/94)
     private val DEFAULT_VAZHIPAD_ITEMS = listOf(
