@@ -242,3 +242,15 @@ permanent erasure or a cancellation mechanism for an in-flight vendor request.
 A deployed worker cadence, durable failure reporting and live Storage concurrency
 checks remain prerequisites. No cleanup job is deployed or scheduled by this
 source change. Orphan derivatives are still retained within conservative caps.
+
+### Full migration-chain audit
+
+The database suite now loads all migrations0001-0015 in order, including the
+actual `is_admin`, role policies, revisioned publish functions and gallery
+constraints. It no longer substitutes mock membership/content-meta objects.
+Only vendor-owned Auth/Storage schemas and the hosted table privileges are
+fixtures. Additional probes cover visitor self-enrollment denial, actual caller
+membership, invalid legacy publish rollback and coexistence of legacy gallery
+rows with the separate uploaded manifest. Disposable PostgreSQL is still not a
+hosted Supabase JWT/Storage integration test. Applying the migrations remains a
+separate gated operation, never a side effect of running CI.
