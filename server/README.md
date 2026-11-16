@@ -86,3 +86,21 @@ remain held for explicit reconciliation. With the 24asset cap and max8MiB input,
 4MiB output, this reserves at most384MiB of image payload for this workflow,
 excluding other project data, database/storage overhead and retained legacy files.
 These are engineering ceilings, not a claim about the live plan's free allowance.
+
+### Credential-free decoder subprocess (still disabled)
+
+`processPhoto` now defaults to `normalizeInSubprocess`, not an in-process Sharp
+call. It starts one fixed Node entry point without a shell, service credentials,
+proxy settings, preload hooks or inherited environment. Input is capped at
+8 MiB, output at 4 MiB, and wall time at 20 seconds. An invalid result, child
+error, nonzero exit or deadline fails closed without marking the asset processed.
+The child disables Sharp cache, uses one Sharp thread, and only emits the
+normalized JPEG. Pipe buffers are cleared when the operation settles.
+
+This is **not an OS security sandbox**. The 64 MiB V8 heap flag does not bound
+Sharp's native memory. A compromised native decoder can still access the host's
+filesystem and network. A deployment with enforced CPU/native-memory limits,
+no network and a minimal read-only filesystem remains an activation prerequisite.
+There is no deployment manifest claiming to provide those restrictions here.
+The service key stays in the parent, which only passes the raster bytes over
+stdin. No uploads, migrations or public serving are enabled by this change.
