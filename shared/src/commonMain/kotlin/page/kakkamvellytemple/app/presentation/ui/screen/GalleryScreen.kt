@@ -20,12 +20,6 @@ import page.kakkamvellytemple.app.presentation.ui.component.NetworkImage
 import page.kakkamvellytemple.app.presentation.ui.theme.Gold
 
 private val GALLERY_IMAGES: List<GalleryPhoto> get() = StaticData.GALLERY_PHOTOS
-// Only allow simple slugs so remote content cannot inject arbitrary URLs/hosts.
-private fun imageUrl(name: String): String {
-    val slug = name.filter { it in 'a'..'z' || it in '0'..'9' || it == '-' }
-    return "https://kakkamvellytemple.page/images/$slug.jpg"
-}
-
 @Composable
 fun GalleryScreen(onOpenUrl: (String) -> Unit = {}, isEn: Boolean = false) {
     var selectedIdx by remember { mutableStateOf<Int?>(null) }
@@ -148,7 +142,7 @@ fun GalleryScreen(onOpenUrl: (String) -> Unit = {}, isEn: Boolean = false) {
                 AnimatedVisibility(visible, enter = fadeIn(tween(300, idx * 50))) {
                     // No caption — just the image
                     NetworkImage(
-                        url = imageUrl(photo.resName),
+                        url = page.kakkamvellytemple.app.data.model.galleryImageUrl(photo) ?: "",
                         contentDescription = null,
                         modifier = Modifier
                             .aspectRatio(1f)
@@ -164,12 +158,12 @@ fun GalleryScreen(onOpenUrl: (String) -> Unit = {}, isEn: Boolean = false) {
 
     // Lightbox — also no caption
     selectedIdx?.let { idx ->
-        val photo = GALLERY_IMAGES[idx]
+        val photo = GALLERY_IMAGES.getOrNull(idx) ?: return@let
         AlertDialog(
             onDismissRequest = { selectedIdx = null },
             text = {
                 NetworkImage(
-                    url = imageUrl(photo.resName),
+                    url = page.kakkamvellytemple.app.data.model.galleryImageUrl(photo) ?: "",
                     contentDescription = null,
                     modifier = Modifier.fillMaxWidth().aspectRatio(4f / 3f)
                         .clip(RoundedCornerShape(8.dp))
