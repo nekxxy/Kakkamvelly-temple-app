@@ -25,7 +25,10 @@ class PrivatePhotoViewModel(
             finally { busy=false } }
     }
     fun refresh() = run { photos=repository.listPrivate().getOrThrow() }
-    fun showPreview(id: String) = run { closePreview(); preview=repository.previewProcessed(id).getOrThrow() }
+    fun showPreview(id: String) = run {
+        val path=photos.firstOrNull { it.id==id }?.preview_path ?: error("No private preview")
+        closePreview(); preview=repository.previewProcessed(id,path).getOrThrow()
+    }
     fun upload(bytes: ByteArray, mime: String) {
         if (busy) return
         if (bytes.isEmpty() || bytes.size > 8 * 1024 * 1024 || mime !in listOf("image/jpeg", "image/png", "image/webp")) {
