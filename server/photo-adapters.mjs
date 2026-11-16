@@ -5,7 +5,7 @@ export function supabasePhotoAdapters({url,serviceKey,fetchImpl=fetch}){
  const headers={apikey:serviceKey,Authorization:`Bearer ${serviceKey}`};
  const bucket='temple-photo-quarantine';
  function objectPath(b,p){
-  if(b!==bucket||!(/^[0-9a-f-]{36}\/[0-9a-f-]{36}\/original$/.test(p)||/^processed\/[0-9a-f-]{36}\.jpg$/.test(p)))throw Error('Invalid object path');
+  if(b!==bucket||!(/^[0-9a-f-]{36}\/[0-9a-f-]{36}\/original$/.test(p)||/^processed\/[0-9a-f-]{36}(\/[0-9a-f-]{36})?\.jpg$/.test(p)))throw Error('Invalid object path');
   return `${url}/storage/v1/object/${bucket}/${p}`;
  }
  async function call(path,{method='POST',body,extra={}}={}){
@@ -14,7 +14,7 @@ export function supabasePhotoAdapters({url,serviceKey,fetchImpl=fetch}){
  }
  async function rpc(name,body){const r=await call(`${url}/rest/v1/rpc/${name}`,{body:JSON.stringify(body),extra:{'Content-Type':'application/json'}});return r.status===204?null:r.json();}
  return {
-  assets:{pending:id=>rpc('get_pending_temple_photo',{p_id:id}),finish:(id,path)=>rpc('finish_temple_photo_processing',{p_id:id,p_normalized_path:path}),
+  assets:{claim:id=>rpc('claim_private_temple_photo',{p_id:id}),finish:(id,token)=>rpc('finish_leased_temple_photo',{p_id:id,p_token:token}),
    cleanupBatch:()=>rpc('private_photo_cleanup_batch',{}),
    confirmErased:id=>rpc('confirm_private_photo_original_erased',{p_id:id})},
   storage:{
