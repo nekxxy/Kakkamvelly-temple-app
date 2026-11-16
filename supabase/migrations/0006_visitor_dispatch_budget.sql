@@ -54,6 +54,9 @@ begin
      or c.rate_valid_until is null or c.rate_valid_until <= t then
     return '{"status":"configuration_required"}'::jsonb;
   end if;
+  if exists(select 1 from temple_private.otp_reservations where currency<>c.currency) then
+    return '{"status":"configuration_required"}'::jsonb;
+  end if;
   if not (p_recipient_hmac = any(c.allowed_recipient_hmacs)) then
     return '{"status":"destination_not_approved"}'::jsonb;
   end if;
