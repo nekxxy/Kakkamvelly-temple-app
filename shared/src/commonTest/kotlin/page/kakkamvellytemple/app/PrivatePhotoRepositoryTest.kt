@@ -118,4 +118,24 @@ class PrivatePhotoRepositoryTest {
         }) { install(ContentNegotiation) { json() } }
         assertEquals(5L,SupabasePrivatePhotoRepository(settings,{"admin-token"},c,true).retirePublishedPhoto(id,4).getOrThrow())
     }
+    @Test fun managementSnapshotKeepsPublicationDistinctFromPrivateProcessing(): Unit = runBlocking {
+        val c=HttpClient(MockEngine { req ->
+            assertEquals("/rest/v1/rpc/get_temple_photo_management",req.url.encodedPath)
+            assertEquals("Bearer admin-token",req.headers[HttpHeaders.Authorization])
+            respond("""{"gallery_revision":8,"requests_enabled":false,"delivery_enabled":false,"photos":[{"id":"$id","state":"reviewed","created_at":"t","expires_at":"t","preview_path":"processed/$id.jpg","publication_id":"$id","publication_state":"published","caption_ml":"മലയാളം","caption_en":"Exact caption"}]}""",
+                HttpStatusCode.OK,headersOf(HttpHeaders.ContentType,"application/json"))
+        }) { install(ContentNegotiation) { json() } }
+        val snapshot=SupabasePrivatePhotoRepository(settings,{"admin-token"},c,true).managementSnapshot().getOrThrow()
+        assertEquals(8L,snapshot.gallery_revision);assertFalse(snapshot.delivery_enabled)
+        assertEquals("reviewed",snapshot.photos.single().state);assertEquals("published",snapshot.photos.single().publication_state)
+    }
+    @Test fun managementRejectsUnknownPublicationStateAndInvalidIdentity(): Unit = runBlocking {
+        for(state in listOf("unknown","published")) {
+            val c=HttpClient(MockEngine {
+                respond("""{"gallery_revision":8,"requests_enabled":false,"delivery_enabled":false,"photos":[{"id":"$id","state":"reviewed","created_at":"t","expires_at":"t","publication_id":"../x","publication_state":"$state"}]}""",
+                    HttpStatusCode.OK,headersOf(HttpHeaders.ContentType,"application/json"))
+            }) { install(ContentNegotiation) { json() } }
+            assertTrue(SupabasePrivatePhotoRepository(settings,{"admin-token"},c,true).managementSnapshot().isFailure)
+        }
+    }
 }
