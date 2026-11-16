@@ -28,7 +28,7 @@ grant select,insert,update,delete on storage.objects to authenticated,anon;
 insert into auth.users values('00000000-0000-0000-0000-000000000001'),('00000000-0000-0000-0000-000000000002');
 insert into public.admin_users values('00000000-0000-0000-0000-000000000001');
 `);
-for (const file of ['0006_visitor_dispatch_budget.sql','0007_private_photo_slots.sql','0008_private_photo_cleanup.sql','0009_private_photo_worker_lease.sql','0010_photo_publication_intent.sql','0011_photo_publication_manifest.sql','0012_photo_retirement_captions.sql','0013_gallery_delivery_budget.sql']) await exec(await readFile(new URL('../../supabase/migrations/'+file,import.meta.url),'utf8'));
+for (const file of ['0006_visitor_dispatch_budget.sql','0007_private_photo_slots.sql','0008_private_photo_cleanup.sql','0009_private_photo_worker_lease.sql','0010_photo_publication_intent.sql','0011_photo_publication_manifest.sql','0012_photo_retirement_captions.sql','0013_gallery_delivery_budget.sql','0014_photo_management_snapshot.sql']) await exec(await readFile(new URL('../../supabase/migrations/'+file,import.meta.url),'utf8'));
 const recipient='a'.repeat(64); let seq=0;
 const key=()=> (++seq).toString(16).padStart(64,'0');
 const reserve=async (k=key(),r=recipient)=>(await q('select public.reserve_visitor_otp($1,$2) as value',[k,r])).rows[0].value;
@@ -326,4 +326,15 @@ test('stale or zero budget and delivery kill switch fail closed without resettin
  await exec('update temple_private.gallery_delivery_budget set daily_payload_bytes=16777216;update temple_private.photo_publication_config set delivery_enabled=false');
  assert.equal((await q('select public.reserve_temple_gallery_delivery() as r')).rows[0].r,false);
  assert.equal(Number((await q('select sum(payload_bytes) as n from temple_private.gallery_delivery_reservations')).rows[0].n),8388608);
+});
+
+test('admin management snapshot distinguishes processing from publication/retirement and delivery',async()=>{
+ for(const [role,uid] of [['anon',''],['authenticated',visitorUid],['service_role','']])await assert.rejects(asUser(role,uid,'select public.get_temple_photo_management()'),role==='authenticated'?/admin_required/:/permission denied/);
+ const result=(await asUser('authenticated',adminUid,'select public.get_temple_photo_management() as r')).rows[0].r;
+ assert.equal(Number(result.gallery_revision),await galleryRev());assert.equal(result.delivery_enabled,false);
+ assert.equal(result.photos.length,Number((await q('select count(*) as n from temple_private.photo_assets')).rows[0].n));
+ const retired=result.photos.find(x=>x.publication_state==='retired');assert.ok(retired);assert.equal(retired.state,'reviewed');assert.ok(retired.publication_id);assert.ok(retired.preview_path);
+ const edited=result.photos.find(x=>x.caption_en==='New caption');assert.ok(edited);assert.equal(edited.publication_state,'published');
+ assert.ok(result.photos.some(x=>x.publication_state==='canceled'));
+ assert.ok(result.photos.every(x=>x.original_path===undefined&&x.requested_by===undefined&&x.reviewed_by===undefined));
 });
