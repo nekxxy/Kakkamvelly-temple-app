@@ -35,6 +35,8 @@ class SupabasePrivatePhotoRepository(
         val p_caption_ml: String, val p_caption_en: String,
     )
     @Serializable private class CancelPublicationRequest(val p_request_id: String)
+    @Serializable private class CaptionEditRequest(val p_id: String, val p_expected_revision: Long, val p_caption_ml: String, val p_caption_en: String)
+    @Serializable private class RetireRequest(val p_id: String, val p_expected_revision: Long)
     @Serializable private class ReviewRequest(val p_id: String)
     private val uuid = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
     private fun valid(slot: UploadSlot): Boolean =
@@ -148,5 +150,29 @@ class SupabasePrivatePhotoRepository(
         val receipt: PublicationReceipt = response.body()
         check(receipt.id == requestId && receipt.state == "canceled")
         receipt
+    }
+    /** Caption edits are new content. The backend resets committee verification.
+     * An uncertain response must be reconciled, not blindly resent with a new revision. */
+    suspend fun editPublishedCaptions(publicationId: String, expectedRevision: Long, captionMl: String, captionEn: String): Result<Long> = attempt {
+        if (!publicationRequestsEnabled) throw NotApprovedException("Photo publication requests are not enabled")
+        val t = token(); require(Regex("^$uuid$").matches(publicationId) && expectedRevision >= 0)
+        require(captionMl.length <= 2000 && captionEn.length <= 2000)
+        val response = client.post("${settings.url}/rest/v1/rpc/edit_temple_photo_captions") {
+            headersFor(t); contentType(ContentType.Application.Json)
+            setBody(Json.encodeToString(CaptionEditRequest(publicationId,expectedRevision,captionMl,captionEn)))
+        }
+        checkStatus(response.status)
+        val revision: Long = response.body(); check(revision >= expectedRevision); revision
+    }
+    /** Retirement is monotonic, not deletion. Allowed with new requests disabled;
+     * old downloaded copies cannot be recalled. No object slots are reopened. */
+    suspend fun retirePublishedPhoto(publicationId: String, expectedRevision: Long): Result<Long> = attempt {
+        val t = token(); require(Regex("^$uuid$").matches(publicationId) && expectedRevision >= 0)
+        val response = client.post("${settings.url}/rest/v1/rpc/retire_temple_gallery_photo") {
+            headersFor(t); contentType(ContentType.Application.Json)
+            setBody(Json.encodeToString(RetireRequest(publicationId,expectedRevision)))
+        }
+        checkStatus(response.status)
+        val revision: Long = response.body(); check(revision >= expectedRevision); revision
     }
 }
