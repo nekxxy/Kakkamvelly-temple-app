@@ -211,3 +211,15 @@ HTTP Cache-Control by default. Memory and disk cache reads/writes are disabled
 for the uploaded route, but an image already displayed or copied cannot be
 recalled by retirement. Compile/unit checks do not prove Android cache/runtime
 behavior; actual-device checks remain an activation prerequisite.
+
+### Consistent private management status (0014, unapplied)
+
+An admin-only snapshot returns the gallery revision, server feature status and
+private photo list in one database snapshot. Processing/review and publication
+are separate fields: a reviewed private derivative may also have a queued,
+canceled, published or retired publication. The prepared private screen no
+longer labels every reviewed asset "not published". It distinguishes a published
+photo with global delivery disabled from an unpublished photo. Server flags are
+status only; they never enable the default-off client upload/publication features.
+No production navigation was added. This screen remains pixel/accessibility and
+Malayalam-review unverified; successful compile is not a visual readiness claim.
