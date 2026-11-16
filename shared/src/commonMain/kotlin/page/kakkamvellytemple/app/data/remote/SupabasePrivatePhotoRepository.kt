@@ -3,6 +3,9 @@ package page.kakkamvellytemple.app.data.remote
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.*
+import io.ktor.client.statement.bodyAsChannel
+import kotlinx.io.readByteArray
+import io.ktor.utils.io.readRemaining
 import io.ktor.http.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.Serializable
@@ -21,6 +24,10 @@ class SupabasePrivatePhotoRepository(
     private val enabled: Boolean = false,
 ) {
     @Serializable class UploadSlot(val id: String, val bucket: String, val path: String)
+    @Serializable class PrivatePhoto(
+        val id: String, val state: String, val created_at: String,
+        val expires_at: String, val preview_path: String? = null,
+    )
     @Serializable private class ReviewRequest(val p_id: String)
     private val uuid = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
     private fun valid(slot: UploadSlot): Boolean =
@@ -51,6 +58,33 @@ class SupabasePrivatePhotoRepository(
         val slot: UploadSlot = response.body()
         check(valid(slot)) { "Invalid private slot" }
         slot
+    }
+    suspend fun listPrivate(): Result<List<PrivatePhoto>> = attempt {
+        val t = token()
+        val response = client.post("${settings.url}/rest/v1/rpc/list_private_temple_photos") {
+            headersFor(t); contentType(ContentType.Application.Json); setBody("{}")
+        }
+        checkStatus(response.status)
+        val rows: List<PrivatePhoto> = response.body()
+        check(rows.size <= 24 && rows.all { Regex("^$uuid$").matches(it.id) &&
+            it.state in listOf("pending", "processed", "reviewed") &&
+            (it.preview_path == null || it.preview_path == "processed/${it.id}.jpg") })
+        rows
+    }
+    /** Authenticated admin read; bytes are never a public/signed URL. RLS denies
+     * visitor sessions and original files. Keep previews in private memory only. */
+    suspend fun previewProcessed(id: String): Result<ByteArray> = attempt {
+        val t = token(); require(Regex("^$uuid$").matches(id))
+        val response = client.get("${settings.url}/storage/v1/object/authenticated/temple-photo-quarantine/processed/$id.jpg") {
+            headersFor(t)
+        }
+        checkStatus(response.status)
+        check(response.headers[HttpHeaders.ContentType]?.substringBefore(';') == "image/jpeg")
+        val channel = response.bodyAsChannel()
+        val bytes = try { channel.readRemaining(4L * 1024 * 1024 + 1).readByteArray() }
+            finally { channel.cancel() }
+        check(bytes.isNotEmpty() && bytes.size <= 4 * 1024 * 1024)
+        bytes
     }
     /** Successful storage upload means PRIVATE original only. It does not mean
      * processed, reviewed, verified, published, or visible to visitors. No retry
