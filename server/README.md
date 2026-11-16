@@ -183,3 +183,23 @@ recall bytes someone already downloaded. A gateway read already buffered is
 re-checked before return, but no distributed system can retract a response that
 was already delivered. The Kotlin repository has gated edit/retire methods and
 unit tests, but no production admin UI or live RPC wiring has been enabled.
+
+### Durable gateway payload/request reservations (0013, unapplied)
+
+The image handler now requires a server-only durable budget adapter. Before any
+manifest/storage read, each canonical GET or HEAD reserves the full 4 MiB image
+maximum and one request. SQL serializes reservations against configured UTC
+hourly request, daily payload and monthly payload ceilings. Enabled=false,
+zero/unset ceilings, stale validity or the delivery kill switch deny reservations.
+Uncertain outcomes, missing images and HEAD requests keep the full reservation;
+there is no refund, retry credit or ledger reset. Client roles cannot inspect or
+change the budget. No IP, phone number or other visitor identifier is collected.
+No live allowance or policy amount is configured by this source change.
+
+This limits reserved **JPEG payload and canonical handler requests**, not a
+provider's invoice. Rejected traffic, function invocations, metadata RPC traffic,
+HTTP/JSON overhead, platform bandwidth accounting, other project traffic and an
+attacker's requests outside this handler are not covered. Enforced edge rate
+limits, service quotas, billing alerts/hard caps where supported, current hosted
+allowances and a verified hosting route remain activation prerequisites. Do not
+interpret the byte ledger as an assurance that a free-tier deployment cannot bill.
