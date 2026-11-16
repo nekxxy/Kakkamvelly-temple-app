@@ -53,4 +53,21 @@ class PrivatePhotoRepositoryTest {
             assertTrue(result.isFailure);assertFalse(result.exceptionOrNull()!!.message!!.contains("provider detail"));assertEquals(1,calls)
         }
     }
+
+    @Test fun privatePreviewRequiresAuthAndNeverUsesPublicRoute(): Unit = runBlocking {
+        val c=HttpClient(MockEngine { req ->
+            assertTrue(req.url.encodedPath.contains("/object/authenticated/temple-photo-quarantine/processed/"))
+            assertEquals("Bearer admin-token",req.headers[HttpHeaders.Authorization])
+            respond(byteArrayOf(1,2,3),HttpStatusCode.OK,headersOf(HttpHeaders.ContentType,"image/jpeg"))
+        })
+        val r=SupabasePrivatePhotoRepository(settings,{"admin-token"},c,true)
+        assertContentEquals(byteArrayOf(1,2,3),r.previewProcessed(id).getOrThrow())
+    }
+    @Test fun privateListRejectsUnexpectedExternalPreviewPath(): Unit = runBlocking {
+        val c=HttpClient(MockEngine {
+            respond("""[{"id":"$id","state":"processed","created_at":"t","expires_at":"t","preview_path":"https://evil.invalid/image"}]""",
+                HttpStatusCode.OK,headersOf(HttpHeaders.ContentType,"application/json"))
+        }) { install(ContentNegotiation) { json(Json { ignoreUnknownKeys=true }) } }
+        assertTrue(SupabasePrivatePhotoRepository(settings,{"admin-token"},c,true).listPrivate().isFailure)
+    }
 }
