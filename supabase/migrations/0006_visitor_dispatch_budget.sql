@@ -58,7 +58,8 @@ begin
     return '{"status":"destination_not_approved"}'::jsonb;
   end if;
   if exists(select 1 from temple_private.otp_reservations where delivery_hmac=p_delivery_hmac) then
-    return '{"status":"duplicate"}'::jsonb;
+    return (select jsonb_build_object('status','duplicate','outcome',outcome)
+      from temple_private.otp_reservations where delivery_hmac=p_delivery_hmac);
   end if;
   -- Numeric sums avoid bigint overflow. All outcomes retain their full cost.
   if (select coalesce(sum(reserved_minor),0) from temple_private.otp_reservations where created_at>=day_start)
