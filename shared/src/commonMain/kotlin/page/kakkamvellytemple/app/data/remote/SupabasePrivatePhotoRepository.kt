@@ -82,7 +82,7 @@ class SupabasePrivatePhotoRepository(
         check(response.headers[HttpHeaders.ContentType]?.substringBefore(';') == "image/jpeg")
         val channel = response.bodyAsChannel()
         val bytes = try { channel.readRemaining(4L * 1024 * 1024 + 1).readByteArray() }
-            finally { channel.cancel() }
+            finally { channel.cancel(null) }
         check(bytes.isNotEmpty() && bytes.size <= 4 * 1024 * 1024)
         bytes
     }
