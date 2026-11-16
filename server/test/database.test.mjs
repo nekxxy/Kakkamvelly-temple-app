@@ -25,7 +25,7 @@ grant select,insert,update,delete on storage.objects to authenticated,anon;
 insert into auth.users values('00000000-0000-0000-0000-000000000001'),('00000000-0000-0000-0000-000000000002');
 insert into public.admin_users values('00000000-0000-0000-0000-000000000001');
 `);
-for (const file of ['0006_visitor_dispatch_budget.sql','0007_private_photo_slots.sql']) await exec(await readFile(new URL('../../supabase/migrations/'+file,import.meta.url),'utf8'));
+for (const file of ['0006_visitor_dispatch_budget.sql','0007_private_photo_slots.sql','0008_private_photo_cleanup.sql']) await exec(await readFile(new URL('../../supabase/migrations/'+file,import.meta.url),'utf8'));
 const recipient='a'.repeat(64); let seq=0;
 const key=()=> (++seq).toString(16).padStart(64,'0');
 const reserve=async (k=key(),r=recipient)=>(await q('select public.reserve_visitor_otp($1,$2) as value',[k,r])).rows[0].value;
@@ -112,4 +112,22 @@ test('only processed derivative has admin-only preview, never original',async()=
 test('all asset states count toward total capacity, not just pending',async()=>{
  await exec("truncate temple_private.photo_assets; insert into temple_private.photo_assets(created_by,original_path,state,normalized_path) select '00000000-0000-0000-0000-000000000001'::uuid,'fixture-'||i,'processed','processed-'||i from generate_series(1,24) i");
  await assert.rejects(asUser('authenticated','00000000-0000-0000-0000-000000000001','select public.create_photo_upload_slot()'),/photo_slots_full/);
+});
+
+test('original cleanup requires processed asset and confirmed storage absence',async()=>{
+ const id='00000000-0000-0000-0000-000000000077';const uid='00000000-0000-0000-0000-000000000001';const path=`${uid}/${id}/original`;
+ await q("insert into temple_private.photo_assets(id,created_by,original_path,state,normalized_path) values($1,$2,$3,'processed',$4)",[id,uid,path,`processed/${id}.jpg`]);
+ await q("insert into storage.objects(bucket_id,name) values('temple-photo-quarantine',$1)",[path]);
+ await assert.rejects(q('select public.confirm_private_photo_original_erased($1)',[id]),/original_still_exists/);
+ await assert.rejects(asUser('authenticated',uid,'select public.private_photo_cleanup_batch()'),/permission denied/);
+ await q("delete from storage.objects where bucket_id='temple-photo-quarantine' and name=$1",[path]);
+ await q('select public.confirm_private_photo_original_erased($1)',[id]);
+ assert.ok((await q('select original_erased_at from temple_private.photo_assets where id=$1',[id])).rows[0].original_erased_at);
+ assert.equal((await q('select count(*) as n from temple_private.photo_assets where id=$1',[id])).rows[0].n,1);
+});
+
+test('currency cannot silently change with active reservation history',async()=>{
+ await reset();assert.equal((await reserve()).status,'reserved');
+ await exec("update temple_private.otp_config set currency='USD'");
+ assert.equal((await reserve()).status,'configuration_required');
 });
