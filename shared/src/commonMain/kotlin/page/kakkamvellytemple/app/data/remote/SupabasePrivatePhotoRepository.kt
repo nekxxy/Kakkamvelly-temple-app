@@ -68,14 +68,15 @@ class SupabasePrivatePhotoRepository(
         val rows: List<PrivatePhoto> = response.body()
         check(rows.size <= 24 && rows.all { Regex("^$uuid$").matches(it.id) &&
             it.state in listOf("pending", "processed", "reviewed") &&
-            (it.preview_path == null || it.preview_path == "processed/${it.id}.jpg") })
+            (it.preview_path == null || Regex("^processed/${it.id}(/$uuid)?\\.jpg$").matches(it.preview_path)) })
         rows
     }
     /** Authenticated admin read; bytes are never a public/signed URL. RLS denies
      * visitor sessions and original files. Keep previews in private memory only. */
-    suspend fun previewProcessed(id: String): Result<ByteArray> = attempt {
+    suspend fun previewProcessed(id: String, path: String = "processed/$id.jpg"): Result<ByteArray> = attempt {
         val t = token(); require(Regex("^$uuid$").matches(id))
-        val response = client.get("${settings.url}/storage/v1/object/authenticated/temple-photo-quarantine/processed/$id.jpg") {
+        require(Regex("^processed/$id(/$uuid)?\\.jpg$").matches(path))
+        val response = client.get("${settings.url}/storage/v1/object/authenticated/temple-photo-quarantine/$path") {
             headersFor(t)
         }
         checkStatus(response.status)
