@@ -11,6 +11,8 @@ class PrivatePhotoViewModel(
     private val scope: CoroutineScope,
 ) {
     var photos by mutableStateOf<List<SupabasePrivatePhotoRepository.PrivatePhoto>>(emptyList()); private set
+    var galleryRevision by mutableStateOf<Long?>(null); private set
+    var deliveryEnabled by mutableStateOf(false); private set
     var busy by mutableStateOf(false); private set
     var error by mutableStateOf<String?>(null); private set
     var notice by mutableStateOf<String?>(null); private set
@@ -24,7 +26,11 @@ class PrivatePhotoViewModel(
             catch(_: Exception) { error="Private photo operation could not be confirmed. No photo was published." }
             finally { busy=false } }
     }
-    fun refresh() = run { photos=repository.listPrivate().getOrThrow() }
+    private suspend fun reload() {
+        val snapshot=repository.managementSnapshot().getOrThrow()
+        photos=snapshot.photos; galleryRevision=snapshot.gallery_revision; deliveryEnabled=snapshot.delivery_enabled
+    }
+    fun refresh() = run { reload() }
     fun showPreview(id: String) = run {
         val path=photos.firstOrNull { it.id==id }?.preview_path ?: error("No private preview")
         closePreview(); preview=repository.previewProcessed(id,path).getOrThrow()
@@ -41,15 +47,15 @@ class PrivatePhotoViewModel(
                 val slot=repository.createSlot().getOrThrow()
                 repository.uploadOriginal(slot,owned,mime).getOrThrow()
                 notice="Private original uploaded. Processing and review are still required. Nothing was published."
-                photos=repository.listPrivate().getOrThrow()
+                reload()
             } finally { owned.fill(0) }
         }
     }
     fun review(id: String) = run {
         repository.reviewProcessed(id).getOrThrow()
         notice="Review recorded privately. Nothing was published."
-        photos=repository.listPrivate().getOrThrow()
+        reload()
     }
     /** Call when leaving admin UI; cancellation is not a server rollback. */
-    fun clear() { job?.cancel(); closePreview(); photos=emptyList(); notice=null; error=null }
+    fun clear() { job?.cancel(); closePreview(); photos=emptyList(); galleryRevision=null; deliveryEnabled=false; notice=null; error=null }
 }
