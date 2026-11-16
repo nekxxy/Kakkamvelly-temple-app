@@ -21,8 +21,8 @@ fun PrivatePhotoScreen(vm: PrivatePhotoViewModel, onChoosePhoto: () -> Unit,
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement=Arrangement.spacedBy(12.dp)) {
         Text(text("Private temple photos", "സ്വകാര്യ ക്ഷേത്ര ചിത്രങ്ങൾ"),style=MaterialTheme.typography.headlineSmall)
-        Text(text("Photos here are private. Uploading or reviewing does not publish them to visitors.",
-            "ഇവിടെയുള്ള ചിത്രങ്ങൾ സ്വകാര്യമാണ്. അപ്‌ലോഡ് ചെയ്യുകയോ പരിശോധിക്കുകയോ ചെയ്താൽ സന്ദർശകർക്ക് പ്രസിദ്ധീകരിക്കില്ല."))
+        Text(text("Originals and previews stay private. Uploading or reviewing does not publish them. See each photo's publication status below.",
+            "അസൽ ചിത്രങ്ങളും പ്രിവ്യൂകളും സ്വകാര്യമാണ്. അപ്‌ലോഡ് ചെയ്യുന്നതോ പരിശോധിക്കുന്നതോ പ്രസിദ്ധീകരണമല്ല. ഓരോ ചിത്രത്തിന്റെയും പ്രസിദ്ധീകരണ നില താഴെ കാണാം."))
         Button(onClick=onChoosePhoto,enabled=!vm.busy) { Text(text("Choose a photo", "ചിത്രം തിരഞ്ഞെടുക്കുക")) }
         Text(text("JPEG, PNG or WebP, up to 8 MiB. Location metadata is removed during server processing.",
             "JPEG, PNG അല്ലെങ്കിൽ WebP, പരമാവധി 8 MiB. സെർവർ പ്രോസസ്സിംഗിൽ ലൊക്കേഷൻ വിവരങ്ങൾ നീക്കംചെയ്യും."))
@@ -34,6 +34,7 @@ fun PrivatePhotoScreen(vm: PrivatePhotoViewModel, onChoosePhoto: () -> Unit,
             Image(preview,contentDescription=text("Private photo preview", "സ്വകാര്യ ചിത്രത്തിന്റെ പ്രിവ്യൂ"),modifier=Modifier.fillMaxWidth().heightIn(max=360.dp))
             TextButton(onClick=vm::closePreview) { Text(text("Close preview", "പ്രിവ്യൂ അടയ്ക്കുക")) }
         }
+        if (!vm.deliveryEnabled) Text(text("Visitor photo delivery is disabled.", "സന്ദർശകർക്കുള്ള ചിത്ര വിതരണം പ്രവർത്തനരഹിതമാണ്."))
         vm.photos.forEach { photo ->
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
@@ -41,7 +42,15 @@ fun PrivatePhotoScreen(vm: PrivatePhotoViewModel, onChoosePhoto: () -> Unit,
                     Text(when(photo.state) {
                         "pending" -> text("Private original: waiting for processing", "സ്വകാര്യ ചിത്രം: പ്രോസസ്സിംഗ് കാത്തിരിക്കുന്നു")
                         "processed" -> text("Processed privately: review needed", "സ്വകാര്യമായി പ്രോസസ്സ് ചെയ്തു: പരിശോധന വേണം")
-                        else -> text("Reviewed privately: not published", "സ്വകാര്യമായി പരിശോധിച്ചു: പ്രസിദ്ധീകരിച്ചിട്ടില്ല")
+                        else -> text("Private review recorded", "സ്വകാര്യ പരിശോധന രേഖപ്പെടുത്തി")
+                    })
+                    Text(when(photo.publication_state) {
+                        "queued" -> text("Publication requested, not yet published", "പ്രസിദ്ധീകരണ അഭ്യർത്ഥന നൽകി, ഇതുവരെ പ്രസിദ്ധീകരിച്ചിട്ടില്ല")
+                        "canceled" -> text("Publication request canceled", "പ്രസിദ്ധീകരണ അഭ്യർത്ഥന റദ്ദാക്കി")
+                        "published" -> if(vm.deliveryEnabled) text("Published. Visitor delivery is enabled.", "പ്രസിദ്ധീകരിച്ചു. സന്ദർശകർക്കുള്ള വിതരണം പ്രവർത്തനക്ഷമമാണ്.")
+                            else text("Published, but visitor delivery is disabled.", "പ്രസിദ്ധീകരിച്ചു, എന്നാൽ സന്ദർശകർക്കുള്ള വിതരണം പ്രവർത്തനരഹിതമാണ്.")
+                        "retired" -> text("Retired. Future visitor reads are disabled.", "പിൻവലിച്ചു. ഭാവിയിലെ സന്ദർശക വായനകൾ പ്രവർത്തനരഹിതമാണ്.")
+                        else -> text("Not published", "പ്രസിദ്ധീകരിച്ചിട്ടില്ല")
                     })
                     if(photo.preview_path!=null) TextButton(onClick={vm.showPreview(photo.id)},enabled=!vm.busy) {
                         Text(text("Preview processed photo", "പ്രോസസ്സ് ചെയ്ത ചിത്രം കാണുക"))
