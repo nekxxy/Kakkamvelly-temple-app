@@ -1,5 +1,8 @@
 package page.kakkamvellytemple.app.data.remote
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import io.ktor.client.HttpClient
 import page.kakkamvellytemple.app.data.repository.*
 
@@ -21,11 +24,12 @@ class VisitorWhatsAppAuth(
         settings, client, SupabaseAuthRepository.Channel.WHATSAPP, deliveryEnabled,
     )
 
+    private var pendingPhone by mutableStateOf<String?>(null)
+
     override val state: VisitorAuthState
         get() = when (val s = delegate.state) {
             is AdminAuthState.SignedIn -> VisitorAuthState.SignedIn(s.userId)
-            is AdminAuthState.AwaitingOtp -> VisitorAuthState.AwaitingCode(s.destination)
-            else -> VisitorAuthState.SignedOut
+            else -> pendingPhone?.let { VisitorAuthState.AwaitingCode(it) } ?: VisitorAuthState.SignedOut
         }
 
     private fun validPhone(phone: String) = Regex("^\\+[1-9][0-9]{6,14}$").matches(phone)
@@ -33,7 +37,7 @@ class VisitorWhatsAppAuth(
     override suspend fun requestCode(phone: String): Result<Unit> {
         if (!deliveryEnabled) return Result.failure(NotApprovedException("Visitor WhatsApp delivery is not enabled yet"))
         if (!validPhone(phone)) return Result.failure(IllegalArgumentException("Enter a number with its country code, such as +91"))
-        return delegate.requestOtp(phone)
+        return delegate.requestOtp(phone).onSuccess { pendingPhone = phone }
     }
 
     override suspend fun verifyCode(phone: String, code: String): Result<Unit> {
@@ -42,8 +46,11 @@ class VisitorWhatsAppAuth(
             ?: return Result.failure(IllegalStateException("Request a WhatsApp code first"))
         if (pending.phone != phone) return Result.failure(IllegalArgumentException("Request a new code for the changed number"))
         if (!Regex("^[0-9]{6}$").matches(code)) return Result.failure(IllegalArgumentException("Enter the six-digit code"))
-        return delegate.verifyOtp(phone, code)
+        return delegate.verifyOtp(phone, code).onSuccess { pendingPhone = null }
     }
 
-    override suspend fun signOut() = delegate.signOut()
+    override suspend fun signOut() {
+        pendingPhone = null
+        delegate.signOut()
+    }
 }
