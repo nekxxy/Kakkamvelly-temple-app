@@ -7,5 +7,6 @@ import androidx.compose.ui.Modifier
 expect fun NetworkImage(
     url: String,
     contentDescription: String?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    cacheEnabled: Boolean = true,
 )
