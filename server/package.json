@@ -1,0 +1,22 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "description": "",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "keywords": [],
+  "dependencies": {
+    "sharp": "0.35.5",
+    "standardwebhooks": "1.0.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.16",
+    "pg": "8.23.1"
+  },
+  "private": true,
+  "type": "module"
+}
