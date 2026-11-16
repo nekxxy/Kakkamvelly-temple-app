@@ -1,56 +1,109 @@
 package page.kakkamvellytemple.app.data.remote
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import io.ktor.client.HttpClient
+import io.ktor.client.call.body
+import io.ktor.client.request.*
+import io.ktor.http.*
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.datetime.Clock
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import page.kakkamvellytemple.app.data.repository.*
+import page.kakkamvellytemple.app.data.session.*
 
-/** Prepared visitor WhatsApp transport, DISABLED by default. Sender registration,
- * template approval, cost approval, abuse controls and live delivery verification
- * must be completed before a production entry point can enable it. No SMS fallback.
- *
- * Supabase issues/verifies the OTP; this class never generates a code. Built-in
- * WhatsApp delivery requires Twilio/Twilio Verify. A custom Send SMS Hook can use
- * Meta directly, but its channel dispatch must be integration-tested before use.
- * Session persistence/refresh and the production navigation gate remain unwired.
- * The private delegate is NOT the admin screen's auth dependency. */
+/** Visitor identity only, never an admin AuthRepository or token provider.
+ * Delivery stays disabled until sender/template/cost/abuse-control approval and
+ * live integration verification. No SMS fallback or sender credentials in app.
+ * Android production composition must supply AndroidVisitorSessionStore and a
+ * dedicated HTTP client WITHOUT Logging. Default store is ephemeral for tests
+ * and previews; it is not a silent fallback for a failed encrypted store. */
 class VisitorWhatsAppAuth(
-    settings: SupabaseContentSource.Settings,
-    client: HttpClient,
+    private val settings: SupabaseContentSource.Settings,
+    private val client: HttpClient,
     override val deliveryEnabled: Boolean = false,
+    store: VisitorSessionStore = MemoryVisitorSessionStore(),
+    private val nowSeconds: () -> Long = { Clock.System.now().toEpochMilliseconds() / 1000 },
 ) : VisitorAuthRepository {
-    private val delegate = SupabaseAuthRepository(
-        settings, client, SupabaseAuthRepository.Channel.WHATSAPP, deliveryEnabled,
+    private val mutex = Mutex()
+    private val json = Json { ignoreUnknownKeys = true }
+    private val sessions = VisitorSessionManager(store,
+        SupabaseVisitorSessionRefresher(settings, client, nowSeconds), nowSeconds,
+        SupabaseVisitorSessionRevoker(settings, client))
+    private var pendingPhone: String? = null
+    override var state: VisitorAuthState by mutableStateOf(VisitorAuthState.SignedOut)
+        private set
+
+    @Serializable private class OtpRequest(val phone: String, val channel: String = "whatsapp")
+    @Serializable private class VerifyRequest(val phone: String, val token: String, val type: String = "sms")
+    @Serializable private class User(val id: String)
+    @Serializable private class SessionResponse(
+        val access_token: String, val refresh_token: String, val expires_in: Long, val user: User,
     )
+    private suspend fun attempt(block: suspend () -> Unit): Result<Unit> = try {
+        block(); Result.success(Unit)
+    } catch (e: CancellationException) { throw e }
+      catch (_: Exception) { Result.failure(Exception("Visitor login is temporarily unavailable or the code is invalid")) }
 
-    private var pendingPhone by mutableStateOf<String?>(null)
-
-    override val state: VisitorAuthState
-        get() = when (val s = delegate.state) {
-            is AdminAuthState.SignedIn -> VisitorAuthState.SignedIn(s.userId)
-            else -> pendingPhone?.let { VisitorAuthState.AwaitingCode(it) } ?: VisitorAuthState.SignedOut
+    override suspend fun requestCode(phone: String): Result<Unit> = mutex.withLock {
+        if (!deliveryEnabled) return@withLock Result.failure(NotApprovedException("Visitor WhatsApp delivery is not enabled yet"))
+        if (!Regex("^\\+[1-9][0-9]{6,14}$").matches(phone)) {
+            return@withLock Result.failure(IllegalArgumentException("Enter a number with its country code"))
         }
-
-    private fun validPhone(phone: String) = Regex("^\\+[1-9][0-9]{6,14}$").matches(phone)
-
-    override suspend fun requestCode(phone: String): Result<Unit> {
-        if (!deliveryEnabled) return Result.failure(NotApprovedException("Visitor WhatsApp delivery is not enabled yet"))
-        if (!validPhone(phone)) return Result.failure(IllegalArgumentException("Enter a number with its country code, such as +91"))
-        return delegate.requestOtp(phone).onSuccess { pendingPhone = phone }
+        attempt {
+            val response = client.post("${settings.url}/auth/v1/otp") {
+                header("apikey", settings.anonKey); contentType(ContentType.Application.Json)
+                setBody(Json { encodeDefaults = true }.encodeToString(OtpRequest(phone)))
+            }
+            check(response.status.isSuccess()) { "Code request failed" }
+            pendingPhone = phone
+            state = VisitorAuthState.AwaitingCode(phone)
+        }
     }
 
-    override suspend fun verifyCode(phone: String, code: String): Result<Unit> {
-        if (!deliveryEnabled) return Result.failure(NotApprovedException("Visitor WhatsApp delivery is not enabled yet"))
-        val pending = state as? VisitorAuthState.AwaitingCode
-            ?: return Result.failure(IllegalStateException("Request a WhatsApp code first"))
-        if (pending.phone != phone) return Result.failure(IllegalArgumentException("Request a new code for the changed number"))
-        if (!Regex("^[0-9]{6}$").matches(code)) return Result.failure(IllegalArgumentException("Enter the six-digit code"))
-        return delegate.verifyOtp(phone, code).onSuccess { pendingPhone = null }
+    override suspend fun verifyCode(phone: String, code: String): Result<Unit> = mutex.withLock {
+        if (!deliveryEnabled) return@withLock Result.failure(NotApprovedException("Visitor WhatsApp delivery is not enabled yet"))
+        if (pendingPhone != phone || !Regex("^[0-9]{6}$").matches(code)) {
+            return@withLock Result.failure(IllegalArgumentException("Request a code for this number and enter six digits"))
+        }
+        attempt {
+            val response = client.post("${settings.url}/auth/v1/verify") {
+                header("apikey", settings.anonKey); contentType(ContentType.Application.Json)
+                setBody(Json { encodeDefaults = true }.encodeToString(VerifyRequest(phone, code)))
+            }
+            check(response.status.isSuccess()) { "Code verification failed" }
+            val body: SessionResponse = response.body()
+            check(body.expires_in in 1..604800)
+            // Durable persistence succeeds BEFORE a signed-in UI state is exposed.
+            sessions.accept(VisitorSession(body.access_token, body.refresh_token, body.user.id, nowSeconds() + body.expires_in))
+            pendingPhone = null
+            state = VisitorAuthState.SignedIn(body.user.id)
+        }
     }
 
-    override suspend fun signOut() {
+    override suspend fun restoreSession(): Result<Unit> = mutex.withLock {
+        if (!deliveryEnabled) return@withLock Result.success(Unit) // inert while setup/rollout held
+        try {
+            val restored = sessions.validSession()
+            if (restored != null) state = VisitorAuthState.SignedIn(restored.userId)
+            else if (pendingPhone == null) state = VisitorAuthState.SignedOut
+            Result.success(Unit)
+        } catch (e: CancellationException) { throw e }
+          catch (_: Exception) {
+            // Never leave stale authenticated navigation open after an offline or
+            // expired-session recheck. Disk refresh token is retained for retry.
+            state = VisitorAuthState.SignedOut
+            Result.failure(Exception("Could not restore visitor session"))
+        }
+    }
+
+    override suspend fun signOut() = mutex.withLock {
         pendingPhone = null
-        delegate.signOut()
+        state = VisitorAuthState.SignedOut
+        try { sessions.signOut() } catch (e: CancellationException) { throw e }
+        catch (_: Exception) { throw Exception("Signed out on this device; server logout could not be confirmed") }
     }
 }
