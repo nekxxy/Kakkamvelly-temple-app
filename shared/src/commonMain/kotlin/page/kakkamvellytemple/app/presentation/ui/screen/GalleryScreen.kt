@@ -107,7 +107,6 @@ fun GalleryScreen(onOpenUrl: (String) -> Unit = {}, isEn: Boolean = false) {
                     NetworkImage(
                         url = "https://img.youtube.com/vi/${StaticData.YOUTUBE_VIDEO_ID}/mqdefault.jpg",
                         contentDescription = null,
-                        cacheEnabled = photo.assetId == null && photo.publicationId == null,
                         modifier = Modifier.size(width = 100.dp, height = 56.dp)
                             .clip(RoundedCornerShape(8.dp))
                     )
