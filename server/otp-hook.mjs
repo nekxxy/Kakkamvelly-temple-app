@@ -34,6 +34,9 @@ export function createOtpHook({enabled=false,hookSecret,dedupeSecret,ledger,send
     const recipient=digest(dedupeSecret,'recipient-v1',phone);
     let reservation;
     try{reservation=await ledger.reserve(delivery,recipient);}catch{return reply(503,'Login delivery unavailable');}
+    // Re-ack a durably recorded prior provider acceptance without another send.
+    // A reserved/unknown prior attempt is never retried or claimed successful.
+    if(reservation?.status==='duplicate'&&reservation.outcome==='accepted')return reply(200);
     if(reservation?.status!=='reserved'||!reservation.id)return reply(400,'Login delivery unavailable');
     let outcome='unknown';
     let timer; const controller=new AbortController();
@@ -56,4 +59,4 @@ export function supabaseLedger({url,serviceKey,fetchImpl=fetch}){
     return response.status===204?null:response.json();
   }
   return {reserve:(d,r)=>rpc('reserve_visitor_otp',{p_delivery_hmac:d,p_recipient_hmac:r}),record:(id,outcome)=>rpc('record_visitor_otp',{p_id:id,p_outcome:outcome})};
-      }
+    }
