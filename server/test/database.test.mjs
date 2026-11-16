@@ -28,7 +28,7 @@ grant select,insert,update,delete on storage.objects to authenticated,anon;
 insert into auth.users values('00000000-0000-0000-0000-000000000001'),('00000000-0000-0000-0000-000000000002');
 insert into public.admin_users values('00000000-0000-0000-0000-000000000001');
 `);
-for (const file of ['0006_visitor_dispatch_budget.sql','0007_private_photo_slots.sql','0008_private_photo_cleanup.sql','0009_private_photo_worker_lease.sql','0010_photo_publication_intent.sql','0011_photo_publication_manifest.sql','0012_photo_retirement_captions.sql','0013_gallery_delivery_budget.sql','0014_photo_management_snapshot.sql']) await exec(await readFile(new URL('../../supabase/migrations/'+file,import.meta.url),'utf8'));
+for (const file of ['0006_visitor_dispatch_budget.sql','0007_private_photo_slots.sql','0008_private_photo_cleanup.sql','0009_private_photo_worker_lease.sql','0010_photo_publication_intent.sql','0011_photo_publication_manifest.sql','0012_photo_retirement_captions.sql','0013_gallery_delivery_budget.sql','0014_photo_management_snapshot.sql','0015_expired_upload_tombstones.sql']) await exec(await readFile(new URL('../../supabase/migrations/'+file,import.meta.url),'utf8'));
 const recipient='a'.repeat(64); let seq=0;
 const key=()=> (++seq).toString(16).padStart(64,'0');
 const reserve=async (k=key(),r=recipient)=>(await q('select public.reserve_visitor_otp($1,$2) as value',[k,r])).rows[0].value;
@@ -337,4 +337,29 @@ test('admin management snapshot distinguishes processing from publication/retire
  const edited=result.photos.find(x=>x.caption_en==='New caption');assert.ok(edited);assert.equal(edited.publication_state,'published');
  assert.ok(result.photos.some(x=>x.publication_state==='canceled'));
  assert.ok(result.photos.every(x=>x.original_path===undefined&&x.requested_by===undefined&&x.reviewed_by===undefined));
+});
+
+test('expired pending reconciliation tombstones only old inactive slots, retaining capacity and live work',async()=>{
+ const old=randomUUID(),fresh=randomUUID(),active=randomUUID();
+ for(const id of [old,fresh,active])await q('insert into temple_private.photo_assets(id,created_by,original_path) values($1,$2,$3)',[id,adminUid,`${adminUid}/${id}/original`]);
+ await q("update temple_private.photo_assets set expires_at=clock_timestamp()-interval '2 days' where id in ($1,$2)",[old,active]);
+ await q("update temple_private.photo_assets set processing_until=clock_timestamp()+interval '1 minute',processing_token=gen_random_uuid() where id=$1",[active]);
+ const before=Number((await q('select count(*) as n from temple_private.photo_assets')).rows[0].n);
+ await assert.rejects(asUser('authenticated',adminUid,'select public.abandon_expired_temple_photo_uploads()'),/permission denied/);
+ const rows=(await q('select public.abandon_expired_temple_photo_uploads() as r')).rows[0].r;
+ assert.ok(rows.some(x=>x.id===old));assert.equal(rows.some(x=>x.id===fresh||x.id===active),false);
+ assert.equal(Number((await q('select count(*) as n from temple_private.photo_assets')).rows[0].n),before);
+ // Even extending a tombstone deadline cannot make the worker claim it again.
+ await q("update temple_private.photo_assets set expires_at=clock_timestamp()+interval '1 day' where id=$1",[old]);
+ assert.equal((await q('select public.claim_private_temple_photo($1) as r',[old])).rows[0].r,null);
+ const path=`${adminUid}/${old}/original`;await q("insert into storage.objects(bucket_id,name) values('temple-photo-quarantine',$1)",[path]);
+ await assert.rejects(q('select public.confirm_abandoned_temple_photo_absent($1)',[old]),/original_still_exists/);
+ await q("delete from storage.objects where bucket_id='temple-photo-quarantine' and name=$1",[path]);
+ await q('select public.confirm_abandoned_temple_photo_absent($1)',[old]);
+ const checked=(await q('select abandoned_absence_checked_at,original_erased_at from temple_private.photo_assets where id=$1',[old])).rows[0];assert.ok(checked.abandoned_absence_checked_at);assert.equal(checked.original_erased_at,null);
+ assert.ok((await q('select public.abandon_expired_temple_photo_uploads() as r')).rows[0].r.some(x=>x.id===old));
+ // A late Storage completion is detected next time, not hidden by an erasure flag.
+ await q("insert into storage.objects(bucket_id,name) values('temple-photo-quarantine',$1)",[path]);
+ await assert.rejects(q('select public.confirm_abandoned_temple_photo_absent($1)',[old]),/original_still_exists/);
+ await assert.rejects(q('select public.confirm_abandoned_temple_photo_absent($1)',[fresh]),/photo_not_abandoned/);
 });
