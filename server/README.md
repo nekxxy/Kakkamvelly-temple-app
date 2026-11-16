@@ -122,3 +122,45 @@ independent default-off queue flag, but no production caller or UI entry point.
 A future worker/finalizer must re-check membership, asset review and current
 revision, honor cancellation and safely stage/confirm immutable derivatives
 before a gallery manifest can change. Legacy visitor URLs remain untouched.
+
+### Disabled publication manifest and read gateway (0011, unapplied)
+
+The next stage adds a second **private** bucket and a separately default-disabled
+`delivery_enabled` switch. No direct anonymous/admin object-read policy is added.
+One publication intent per asset and two staging attempts bound derivative growth.
+The conservative byte ceiling becomes 24 * (8 + 2 * 4 + 2 * 4) = 576 MiB before
+cleanup, excluding database/project overhead and all unrelated storage. This is
+an engineering ceiling, not a claim about a live free-tier allowance. Slots and
+intent rows are retained; no automatic quota reopening or orphan reclamation.
+
+The service worker claims a two-minute lease, copies only the reviewed normalized
+JPEG to a unique immutable private target, then finalizes the exact token. SQL
+re-checks active requester/reviewer membership, source asset, current gallery
+revision, cancellation, lease and target object. Finalization creates the read
+manifest, marks the request published, bumps gallery revision and resets committee
+verification in one transaction. A canceled, expired or revision-conflicting
+completion exposes no staged bytes. An uncertain write/finalization is not retried
+automatically. An already published request cannot be canceled as an intent.
+Per-photo unpublish/edit management is not implemented yet. The delivery switch
+hides existing manifests and metadata too; disabling new requests alone does not.
+
+`createGalleryPhotoHandler` is a prepared Fetch-compatible read handler, not a
+running endpoint. It defaults off. It accepts only canonical asset/publication
+IDs, looks up a current finalized manifest, reads at most 4 MiB of JPEG and
+re-checks the manifest after download. No originals, caller URLs/paths, credentials,
+signed redirects or internal object paths are returned. Responses use no-store
+and nosniff. Server-only adapters enforce a fixed Supabase origin, no redirects,
+insert-only targets and five-second network deadlines. No deployment, listener,
+Edge-function configuration, hosting/egress budget control or live route exists.
+The no-store gateway must NOT be activated before egress/rate limits and a hosting
+budget are verified. Default-off source code is not an approval to publish.
+
+The visitor source and URL resolver have an independent default-off upload flag.
+When enabled later, they append canonical uploaded references to legacy photos.
+Existing valid website image URLs and legacy gallery rows are unchanged. Uploaded
+references never pass through the legacy admin slug editor or publish_gallery RPC.
+The new image path is derived from the configured Supabase origin and two UUIDs,
+never a remote URL. Empty/disabled manifests remove uploaded references on refresh;
+legacy packaged fallbacks still keep the unverified notice where appropriate.
+Actual gateway routing, authenticated Storage/RLS and Android/Malayalam pixels
+remain unverified until hosted/device checks are available and approved.
