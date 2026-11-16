@@ -16,7 +16,9 @@ export function supabasePhotoAdapters({url,serviceKey,fetchImpl=fetch}){
  return {
   assets:{claim:id=>rpc('claim_private_temple_photo',{p_id:id}),finish:(id,token)=>rpc('finish_leased_temple_photo',{p_id:id,p_token:token}),
    cleanupBatch:()=>rpc('private_photo_cleanup_batch',{}),
-   confirmErased:id=>rpc('confirm_private_photo_original_erased',{p_id:id})},
+   confirmErased:id=>rpc('confirm_private_photo_original_erased',{p_id:id}),
+   abandonExpired:()=>rpc('abandon_expired_temple_photo_uploads',{}),
+   confirmAbandonedAbsent:id=>rpc('confirm_abandoned_temple_photo_absent',{p_id:id})},
   storage:{
    async downloadBounded(b,p,max){
     if(!Number.isSafeInteger(max)||max<=0||max>8388608)throw Error('Invalid size limit');
