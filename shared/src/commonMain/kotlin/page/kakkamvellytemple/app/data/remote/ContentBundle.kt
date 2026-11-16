@@ -15,6 +15,7 @@ data class ContentBundle(
     val todayEvents: List<TodayEventDto>? = null,
     val festivals: List<FestivalDto>? = null,
     val gallery: List<GalleryDto>? = null,
+    val uploadedGallery: List<UploadedGalleryDto>? = null,
     val announcements: List<AnnouncementDto>? = null,
     val darshan: DarshanDto? = null,
     /** Explicit committee-verification marker from the backend. Remote origin alone
@@ -44,7 +45,7 @@ data class ContentBundle(
 
     /** True when at least one real content section came from the backend. An empty
      *  backend bundle (all sections null) still leaves the app on packaged defaults. */
-    fun hasAnySection(): Boolean = suppliedSections().isNotEmpty()
+    fun hasAnySection(): Boolean = suppliedSections().isNotEmpty() || uploadedGallery?.isNotEmpty() == true
 }
 
 @Serializable data class PoojaDto(val nameMl: String, val nameEn: String, val time: String, val hour: Int, val minute: Int)
@@ -55,3 +56,5 @@ data class ContentBundle(
 @Serializable data class GalleryDto(val resName: String, val captionMl: String, val captionEn: String)
 @Serializable data class AnnouncementDto(val titleMl: String, val titleEn: String, val bodyMl: String = "", val bodyEn: String = "", val active: Boolean = true)
 @Serializable data class DarshanDto(val morningOpenMin: Int, val morningCloseMin: Int, val eveningOpenMin: Int, val eveningCloseMin: Int)
+
+@Serializable data class UploadedGalleryDto(val assetId: String, val publicationId: String, val captionMl: String, val captionEn: String)
