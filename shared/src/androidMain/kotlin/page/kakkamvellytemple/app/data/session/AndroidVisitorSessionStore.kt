@@ -21,7 +21,16 @@ import javax.crypto.spec.GCMParameterSpec
  * restore) before production wiring. A corrupt/missing key means sign in again.
  * One instance per session manager; the manager serializes all calls. */
 class AndroidVisitorSessionStore(context: Context) : VisitorSessionStore {
-    private val file = AtomicFile(File(context.applicationContext.noBackupFilesDir, "visitor-session.enc"))
+    private val base = File(context.applicationContext.noBackupFilesDir, "visitor-session.enc")
+    private val file = AtomicFile(base)
+    private fun deleteCiphertext() {
+        file.delete()
+        // AtomicFile.delete returns no status. Never silently confirm erasure
+        // if its base or recovery files remain on disk.
+        check(listOf(base, File(base.path + ".bak"), File(base.path + ".new")).none { it.exists() }) {
+            "Local session erasure could not be confirmed"
+        }
+    }
     private val alias = "kvt.visitor.session.aes.v1"
     private val aad = "kvt.visitor.session.v1".toByteArray(Charsets.UTF_8)
     private val json = Json { ignoreUnknownKeys = true }
@@ -65,9 +74,9 @@ class AndroidVisitorSessionStore(context: Context) : VisitorSessionStore {
             finally { plain.fill(0) }
         } catch (_: Exception) {
             // No exception details containing payloads are logged or surfaced.
-            file.delete()
+            deleteCiphertext()
             null
         }
     }
-    override suspend fun clear() = withContext(Dispatchers.IO) { file.delete() }
+    override suspend fun clear() = withContext(Dispatchers.IO) { deleteCiphertext() }
 }
