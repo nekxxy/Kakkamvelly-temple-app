@@ -25,3 +25,19 @@ test('cleanup uncertainty stays pending without false confirmation',async()=>{
 });
 
 test('missing worker lease never reaches storage',async()=>{const v=f();const claim=v.assets.claim;v.assets.claim=async()=>({...await claim(),lease_token:null});assert.equal((await processPhoto(v)).status,'not_pending');assert.deepEqual(v.calls,[]);});
+
+test('expired reconciliation repeats absence checks without claiming permanent erasure',async()=>{
+ const {reconcileExpiredOriginals}=await import('../photo-worker.mjs');
+ const id='00000000-0000-0000-0000-000000000001';let deletes=0,checks=0;
+ const args={enabled:true,assets:{abandonExpired:async()=>[{id,bucket:'temple-photo-quarantine',path:`${id}/${id}/original`}],confirmAbandonedAbsent:async()=>{checks++;}},storage:{remove:async()=>{deletes++;}}};
+ for(let i=0;i<2;i++)assert.deepEqual(await reconcileExpiredOriginals(args),{status:'checked',absentAtCheck:1,pending:0});
+ assert.equal(deletes,2);assert.equal(checks,2);
+});
+test('expired reconciliation validates whole batch and retains uncertain deletion',async()=>{
+ const {reconcileExpiredOriginals}=await import('../photo-worker.mjs');const id='00000000-0000-0000-0000-000000000001';let deletes=0;
+ const args={enabled:true,assets:{abandonExpired:async()=>[{id,bucket:'temple-photo-quarantine',path:`${id}/${id}/original`}],confirmAbandonedAbsent:async()=>{throw Error('late original');}},storage:{remove:async()=>{deletes++;}}};
+ assert.deepEqual(await reconcileExpiredOriginals(args),{status:'reconciliation_pending',absentAtCheck:0,pending:1});
+ args.assets.abandonExpired=async()=>[{id,bucket:'public',path:`${id}/${id}/original`}];
+ assert.equal((await reconcileExpiredOriginals(args)).status,'invalid_batch');assert.equal(deletes,1);
+ assert.equal((await reconcileExpiredOriginals()).status,'disabled');
+});
