@@ -60,3 +60,14 @@ publication-aware serving, backwards-compatible asset IDs/renderer, and delayed
 reference-safe deletion. Device UI, encrypted sessions, hosted provider delivery
 and account configuration remain separate verification gates. Green tests do
 not authorize live traffic, paid activation, uploads, publication or rollout.
+
+
+Original cleanup (migration0008): service-only batch returns processed/reviewed
+original paths. cleanupPhotoOriginals validates the whole batch, deletes exact
+originals through Storage API, then asks the server to confirm metadata absence
+before recording original_erased_at. Failures remain pending. It never deletes
+asset rows/derivatives or reopens capacity. Expired pending slots and uncertain
+processing derivatives deliberately remain held until a separate worker-lease
+and orphan-reconciliation protocol is implemented; do not reclaim them by age
+alone, which could race an in-flight processor. No cleanup schedule/deployment
+is enabled. Existing reservation history also blocks silent currency changes.
