@@ -96,3 +96,20 @@ test('admin slot is path-bound and does not expose read/overwrite',async()=>{
  await q("update temple_private.photo_assets set expires_at=clock_timestamp()-interval '1 second' where id=$1",[slot.id]);
  assert.equal((await asUser('authenticated',uid,'select public.can_upload_temple_photo($1,$2) as ok',[slot.bucket,slot.path])).rows[0].ok,false);
 });
+
+test('only processed derivative has admin-only preview, never original',async()=>{
+ const uid='00000000-0000-0000-0000-000000000001';
+ const id='00000000-0000-0000-0000-000000000088';
+ const path=`processed/${id}.jpg`;
+ await q("insert into temple_private.photo_assets(id,created_by,original_path,state,normalized_path) values($1,$2,$3,'processed',$4)",[id,uid,`${uid}/${id}/original`,path]);
+ await q("insert into storage.objects(bucket_id,name) values('temple-photo-quarantine',$1)",[path]);
+ assert.equal((await asUser('authenticated',uid,'select public.can_preview_temple_photo($1,$2) as ok',['temple-photo-quarantine',path])).rows[0].ok,true);
+ assert.equal((await asUser('authenticated','00000000-0000-0000-0000-000000000002','select public.can_preview_temple_photo($1,$2) as ok',['temple-photo-quarantine',path])).rows[0].ok,false);
+ const rows=await asUser('authenticated',uid,'select name from storage.objects');assert.deepEqual(rows.rows.map(x=>x.name),[path]);
+ const list=await asUser('authenticated',uid,'select public.list_private_temple_photos() as photos');assert.ok(list.rows[0].photos.some(x=>x.preview_path===path));
+ await assert.rejects(asUser('authenticated','00000000-0000-0000-0000-000000000002','select public.list_private_temple_photos()'),/admin_required/);
+});
+test('all asset states count toward total capacity, not just pending',async()=>{
+ await exec("truncate temple_private.photo_assets; insert into temple_private.photo_assets(created_by,original_path,state,normalized_path) select '00000000-0000-0000-0000-000000000001'::uuid,'fixture-'||i,'processed','processed-'||i from generate_series(1,24) i");
+ await assert.rejects(asUser('authenticated','00000000-0000-0000-0000-000000000001','select public.create_photo_upload_slot()'),/photo_slots_full/);
+});
