@@ -50,9 +50,15 @@ jobs:
 
       - name: Verify AAB signature matches Play upload key fingerprint
         run: |
-          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
-          "$APKSIGNER" verify --print-certs androidApp/build/outputs/bundle/release/androidApp-release.aab | tee certs.txt
-          grep -qF '60:4F:67:4A:9D:4B:5B:28:45:D5:09:AF:EB:B7:DA:21:E7:CD:DD:FE:D4:64:04:A1:F9:76:D0:43:61:35:83:77' certs.txt
+          AAB=androidApp/build/outputs/bundle/release/androidApp-release.aab
+          jarsigner -verify "$AAB"
+          CERT_ENTRY=$(unzip -Z1 "$AAB" 'META-INF/*.RSA' | head -1)
+          unzip -p "$AAB" "$CERT_ENTRY" > "$RUNNER_TEMP/sigcert.rsa"
+          FP=$(keytool -printcert -file "$RUNNER_TEMP/sigcert.rsa" | grep -oE 'SHA256: ([0-9A-F]{2}:){31}[0-9A-F]{2}' | head -1)
+          echo "AAB signer certificate: $FP"
+          EXPECTED='SHA256: 60:4F:67:4A:9D:4B:5B:28:45:D5:09:AF:EB:B7:DA:21:E7:CD:DD:FE:D4:64:04:A1:F9:76:D0:43:61:35:83:77'
+          if [ "$FP" != "$EXPECTED" ]; then echo "::error::Fingerprint mismatch: expected $EXPECTED"; exit 1; fi
+          echo "AAB is signed with the real Play upload key; fingerprint matches."
 
       - name: Upload AAB artifact (1 day)
         uses: actions/upload-artifact@v4
