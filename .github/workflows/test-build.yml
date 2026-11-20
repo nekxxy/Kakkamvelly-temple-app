@@ -1,8 +1,8 @@
-name: Signed release AAB verify (no publish)
+name: Test APK build (no release)
 
-# Manual-dispatch-only workflow that builds the release AAB signed with the
-# real Play upload key and verifies the signature fingerprint. It never
-# uploads to Play and never publishes a release. Artifact kept for 1 day.
+# Manual-dispatch-only workflow that produces a minified release APK for
+# runtime verification (Firebase Test Lab). It never publishes a release,
+# never touches the real upload key, and keeps the artifact for 1 day.
 
 on:
   workflow_dispatch:
@@ -11,8 +11,36 @@ permissions:
   contents: read
 
 jobs:
-  signed-aab:
-    name: Build and verify Play-signed AAB (artifact only)
+  server:
+    name: Server safeguards and private photo database tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: local-test-only
+          POSTGRES_DB: temple_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+        working-directory: server
+      - run: npm test
+        working-directory: server
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:local-test-only@localhost:5432/temple_test
+
+  build:
+    name: R8 release APK (throwaway-signed test build)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,34 +63,45 @@ jobs:
           key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml') }}
           restore-keys: konan-${{ runner.os }}-
 
-      - name: Decode Play upload keystore
-        run: echo "${{ secrets.UPLOAD_KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/upload.jks"
+      - name: Unit tests (shared)
+        run: gradle :shared:testDebugUnitTest
 
-      - name: Build signed release AAB
-        run: gradle :androidApp:bundleRelease
+      - name: Dump failed test reports
+        if: failure()
+        run: |
+          for f in shared/build/test-results/testDebugUnitTest/*.xml; do
+            echo "=== $f"; cat "$f"; echo;
+          done
+
+      - name: Verify publishable backend config present (no values printed)
+        run: |
+          test -n "${SUPABASE_URL:-}" || { echo "SUPABASE_URL secret missing"; exit 1; }
+          test -n "${SUPABASE_ANON_KEY:-}" || { echo "SUPABASE_ANON_KEY secret missing"; exit 1; }
+          echo "SUPABASE_URL length: ${#SUPABASE_URL}"
+          echo "SUPABASE_ANON_KEY length: ${#SUPABASE_ANON_KEY}"
+          case "$SUPABASE_URL" in https://*.supabase.co) echo "URL shape OK";; *) echo "unexpected URL shape"; exit 1;; esac
         env:
-          SIGNING_STORE_FILE: ${{ runner.temp }}/upload.jks
-          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
-          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
-          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
-      - name: Verify AAB signature matches Play upload key fingerprint
-        run: |
-          AAB=androidApp/build/outputs/bundle/release/androidApp-release.aab
-          jarsigner -verify "$AAB"
-          CERT_ENTRY=$(unzip -Z1 "$AAB" 'META-INF/*.RSA' | head -1)
-          unzip -p "$AAB" "$CERT_ENTRY" > "$RUNNER_TEMP/sigcert.rsa"
-          FP=$(keytool -printcert -file "$RUNNER_TEMP/sigcert.rsa" | grep -oE 'SHA256: ([0-9A-F]{2}:){31}[0-9A-F]{2}' | head -1)
-          echo "AAB signer certificate: $FP"
-          EXPECTED='SHA256: 60:4F:67:4A:9D:4B:5B:28:45:D5:09:AF:EB:B7:DA:21:E7:CD:DD:FE:D4:64:04:A1:F9:76:D0:43:61:35:83:77'
-          if [ "$FP" != "$EXPECTED" ]; then echo "::error::Fingerprint mismatch: expected $EXPECTED"; exit 1; fi
-          echo "AAB is signed with the real Play upload key; fingerprint matches."
+      - name: Generate throwaway test keystore (not the Play upload key)
+        run: keytool -genkeypair -v -keystore "$RUNNER_TEMP/test-only.jks" -alias testonly -keyalg RSA -keysize 2048 -validity 1 -storepass testonly -keypass testonly -dname "CN=Test Only, OU=None, O=None, L=None, ST=None, C=IN"
 
-      - name: Upload AAB artifact (1 day)
+      - name: Build minified release APK
+        run: gradle :androidApp:assembleRelease
+        env:
+          SIGNING_STORE_FILE: ${{ runner.temp }}/test-only.jks
+          SIGNING_STORE_PASSWORD: testonly
+          SIGNING_KEY_ALIAS: testonly
+          SIGNING_KEY_PASSWORD: testonly
+          # Publishable (RLS-safe) backend config ONLY. Never signing keys,
+          # service-role keys, or DB passwords in this workflow.
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+      - name: Upload APK artifact (1 day)
         uses: actions/upload-artifact@v4
         with:
-          name: signed-release-aab
-          path: androidApp/build/outputs/bundle/release/androidApp-release.aab
+          name: test-release-apk
+          path: androidApp/build/outputs/apk/release/androidApp-release.apk
           retention-days: 1
